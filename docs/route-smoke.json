@@ -1,0 +1,205 @@
+{
+  "errors": [],
+  "results": [
+    {
+      "path": "/creators",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/brands",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/campaigns",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/campaigns/festive-fashion-edit",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/creator/aanya.sharma",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/agency/kurta-kraft",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/pricing",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/contact",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/blog/a-better-creator-pitch",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/terms",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/signup",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/role-select",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/otp",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/forgot-password",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/onboarding",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/onboarding",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/dashboard",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/applications",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/saved",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/work",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/work/ca-6",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/c/profile",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/dashboard",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/campaigns",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/campaigns/new",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/campaigns/ca-1/applicants",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/discover",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/lists",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/a/settings",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/messages",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/notifications",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/settings",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/admin",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/tools/engagement",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/tools/rate-estimator",
+      "status": 200,
+      "overflow": false
+    },
+    {
+      "path": "/tools/brief-template",
+      "status": 200,
+      "overflow": false
+    }
+  ]
+}
