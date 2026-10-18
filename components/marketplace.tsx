@@ -16,7 +16,6 @@ import {
   BadgeCheck,
   ArrowUpRight,
   MapPin,
-  Camera as Instagram,
   Users,
   Bookmark,
   ShieldCheck,
@@ -37,8 +36,25 @@ import {
   platforms,
 } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import { formatINR, formatCount } from "@/lib/format";
-import { CampaignCard, CreatorCard, PosterStats } from "./cards";
+import {
+  formatINR,
+  formatCount,
+  campaignValue,
+  servesCity,
+} from "@/lib/format";
+import { SearchSelect } from "./ui/search-select";
+import { MultiSelect } from "./ui/multi-select";
+import {
+  CampaignCard,
+  CreatorCard,
+  PosterStats,
+  PlatformIcon,
+  BrandMark,
+  campaignBrand,
+  campaignPlatforms,
+  DosDonts,
+} from "./cards";
+import { ORGANIC_USAGE, usageLine, usageNotes } from "@/lib/campaign-options";
 import { Dialog } from "./ui/dialog";
 import { SectionHeader } from "./home";
 const applicationSchema = z.object({
@@ -83,8 +99,9 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
             .toLowerCase()
             .includes(search.toLowerCase())) &&
         (!niche || c.niche === niche) &&
-        (!platform || c.platform === platform) &&
-        (!city || c.city === city || c.city === "All India") &&
+        (!platform ||
+          campaignPlatforms(c).some((x) => platform.split(",").includes(x))) &&
+        (!city || servesCity(c.city, city)) &&
         (!type || c.type === type) &&
         (!language || c.language === language) &&
         c.min <= budget &&
@@ -199,15 +216,33 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
           ].map(([label, value, set, options]) => (
             <label key={label as string} className="field">
               <span>{label as string}</span>
-              <select
-                value={value as string}
-                onChange={(e) => (set as (v: string) => void)(e.target.value)}
-              >
-                <option value="">All {String(label).toLowerCase()}s</option>
-                {(options as string[]).map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
+              {label === "Platform" ? (
+                <MultiSelect
+                  label="Platform"
+                  value={value as string}
+                  onChange={set as (v: string) => void}
+                  placeholder="All platforms"
+                  options={options as string[]}
+                />
+              ) : (options as string[]).length > 6 ? (
+                <SearchSelect
+                  label={label as string}
+                  value={value as string}
+                  onChange={set as (v: string) => void}
+                  placeholder={`All ${plural(String(label))}`}
+                  options={options as string[]}
+                />
+              ) : (
+                <select
+                  value={value as string}
+                  onChange={(e) => (set as (v: string) => void)(e.target.value)}
+                >
+                  <option value="">All {plural(String(label))}</option>
+                  {(options as string[]).map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
+              )}
             </label>
           ))}
           <label className="field">
@@ -280,7 +315,7 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
                   className="badge soft"
                   onClick={fn as () => void}
                 >
-                  {s as string}
+                  {(s as string).replaceAll(",", ", ")}
                   <X size={12} />
                 </button>
               ))}
@@ -340,7 +375,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
       />
     );
   const c = campaign;
-  const p = posters.find((p) => p.id === c.posterId) || posters[0];
+  const { p, name: brandName, verified: brandVerified } = campaignBrand(c);
   const applied = store.applications.some(
     (a) =>
       a.campaignId === c.id &&
@@ -390,28 +425,28 @@ export function CampaignDetail({ slug }: { slug: string }) {
             </div>
             <h1>{c.title}</h1>
             <Link href={`/agency/${p.slug}`} className="poster-label">
-              <span className="monogram" style={{ background: p.color }}>
-                {p.name[0]}
-              </span>
-              {p.name}
-              <BadgeCheck size={17} className="brand-text" />
+              <BrandMark campaign={c} />
+              {brandName}
+              {brandVerified && <BadgeCheck size={17} className="brand-text" />}
             </Link>
             <div className="detail-metadata">
               <span>
                 <MapPin size={17} />
                 {c.city}
               </span>
-              <span>
-                <Instagram size={17} />
-                {c.platform}
-              </span>
+              {campaignPlatforms(c).map((p) => (
+                <span key={p}>
+                  <PlatformIcon platform={p} size={17} />
+                  {p}
+                </span>
+              ))}
               <span>
                 <Users size={17} />
                 {c.needed} creators
               </span>
               <span>
                 <Calendar size={17} />
-                Apply by{" "}
+                Closes{" "}
                 {new Date(c.deadline).toLocaleDateString("en-IN", {
                   day: "numeric",
                   month: "short",
@@ -420,6 +455,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
             </div>
             <h2>The creative brief</h2>
             <p>{c.brief}</p>
+            <DosDonts dos={c.dos} donts={c.donts} />
             <h2>What you’ll create</h2>
             <table className="data-table">
               <thead>
@@ -429,8 +465,8 @@ export function CampaignDetail({ slug }: { slug: string }) {
                 </tr>
               </thead>
               <tbody>
-                {c.deliverables.map((d) => (
-                  <tr key={d.type}>
+                {c.deliverables.map((d, i) => (
+                  <tr key={`${d.type}-${i}`}>
                     <td>{d.type}</td>
                     <td>{d.quantity}</td>
                   </tr>
@@ -444,11 +480,16 @@ export function CampaignDetail({ slug }: { slug: string }) {
                   `${formatCount(c.followers)}+ followers`,
                   creators[0].followers >= c.followers,
                 ],
+                ...(c.minEngagement
+                  ? [
+                      [
+                        `${c.minEngagement}%+ engagement`,
+                        creators[0].engagement >= c.minEngagement,
+                      ],
+                    ]
+                  : []),
                 [`${c.niche} content`, creators[0].niche === c.niche],
-                [
-                  `${c.city} location`,
-                  c.city === "All India" || c.city === creators[0].city,
-                ],
+                [`${c.city} location`, servesCity(c.city, creators[0].city)],
                 [
                   `${c.language} content`,
                   creators[0].languages.includes(c.language),
@@ -475,12 +516,23 @@ export function CampaignDetail({ slug }: { slug: string }) {
             </div>
             <h2>Timeline & usage rights</h2>
             <p>
-              Applications close on{" "}
-              {new Date(c.deadline).toLocaleDateString("en-IN")}. Content is due
-              7 days after product delivery. The brand reviews content within 3
-              business days.
+              The campaign closes to applications on{" "}
+              {new Date(c.deadline).toLocaleDateString("en-IN")}. Platform
+              default: content is due 7 days after product delivery or brief
+              confirmation, and the brand reviews content within 3 business
+              days, unless you both agree otherwise in chat.
             </p>
-            <p>{c.usage}</p>
+            {c.usageRights ? (
+              <ul className="usage-review">
+                <li>{ORGANIC_USAGE}</li>
+                {c.usageRights.map((u) => (
+                  <li key={u.kind}>{usageLine(u)}</li>
+                ))}
+                {usageNotes(c) && <li>{usageNotes(c)}</li>}
+              </ul>
+            ) : (
+              <p>{c.usage}</p>
+            )}
             <div className="info-box">
               <ShieldCheck size={21} />
               <span>
@@ -493,13 +545,11 @@ export function CampaignDetail({ slug }: { slug: string }) {
         <aside className="detail-aside">
           <div className="panel budget-panel">
             <span className="eyebrow">YOUR CREATIVITY HAS VALUE</span>
-            <h2>
-              {formatINR(c.min)} - {formatINR(c.max)}
-            </h2>
+            <h2>{campaignValue(c).amount}</h2>
             <p>
-              {c.type === "Barter"
-                ? "Product value per creator"
-                : "Budget per creator"}
+              {c.type === "Paid"
+                ? "Budget per creator"
+                : `${campaignValue(c).label} per creator`}
             </p>
             <button
               className="button full"
@@ -541,7 +591,8 @@ export function CampaignDetail({ slug }: { slug: string }) {
             <span className="eyebrow">MEET THE CAMPAIGN POSTER</span>
             <Link href={`/agency/${p.slug}`}>
               <h3>
-                {p.name} <BadgeCheck size={17} className="brand-text" />
+                {p.name}{" "}
+                {p.verified && <BadgeCheck size={17} className="brand-text" />}
               </h3>
             </Link>
             <span className="muted">
@@ -552,6 +603,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
               <ShieldCheck size={19} />
               <strong>{p.onTime}%</strong> pays on time
             </div>
+            <small className="muted">Illustrative demo metric</small>
             <Link className="text-button" href={`/agency/${p.slug}`}>
               See their track record
               <ArrowUpRight size={16} />
@@ -571,9 +623,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
         </div>
       </section>
       <div className="sticky-apply">
-        <strong>
-          {formatINR(c.min)} - {formatINR(c.max)}
-        </strong>
+        <strong>{campaignValue(c).amount}</strong>
         <button
           className="button"
           disabled={applied}
@@ -586,7 +636,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
         open={open}
         onOpenChange={setOpen}
         title="Make your first impression count."
-        description={`Your pitch for ${p.name}. Show them why you’re the right creative fit.`}
+        description={`Your pitch for ${brandName}. Show them why you’re the right creative fit.`}
       >
         <form onSubmit={form.handleSubmit(submit)} className="form-stack">
           <label className="field">
@@ -691,7 +741,7 @@ export function Discover() {
       (!q || c.name.toLowerCase().includes(q.toLowerCase())) &&
       (!niche || c.niche === niche) &&
       (!city || c.city === city) &&
-      (!platform || c.platform === platform) &&
+      (!platform || platform.split(",").includes(c.platform)) &&
       (!language || c.languages.includes(language)) &&
       (!verified || c.verified) &&
       c.followers >= minFollowers &&
@@ -765,15 +815,33 @@ export function Discover() {
           ].map(([label, value, set, options]) => (
             <label className="field" key={label as string}>
               <span>{label as string}</span>
-              <select
-                value={value as string}
-                onChange={(e) => (set as (v: string) => void)(e.target.value)}
-              >
-                <option value="">All</option>
-                {(options as string[]).map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
+              {label === "Platform" ? (
+                <MultiSelect
+                  label="Platform"
+                  value={value as string}
+                  onChange={set as (v: string) => void}
+                  placeholder="All platforms"
+                  options={options as string[]}
+                />
+              ) : (options as string[]).length > 6 ? (
+                <SearchSelect
+                  label={label as string}
+                  value={value as string}
+                  onChange={set as (v: string) => void}
+                  placeholder="All"
+                  options={options as string[]}
+                />
+              ) : (
+                <select
+                  value={value as string}
+                  onChange={(e) => (set as (v: string) => void)(e.target.value)}
+                >
+                  <option value="">All</option>
+                  {(options as string[]).map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
+              )}
             </label>
           ))}
           <label className="field">
@@ -929,6 +997,7 @@ export function Discover() {
     </>
   );
 }
+const plural = (label: string) => label.toLowerCase().replace(/y$/, "ie") + "s";
 export function Empty({
   title,
   text,
@@ -996,10 +1065,14 @@ export function PosterProfile({ slug }: { slug: string }) {
             {p.city} • Member since {p.since}
           </span>
         </div>
-        <span className="badge lime">
-          <ShieldCheck size={15} />
-          Verified partner
-        </span>
+        {p.verified ? (
+          <span className="badge lime">
+            <ShieldCheck size={15} />
+            Verified partner
+          </span>
+        ) : (
+          <span className="badge">Verification pending</span>
+        )}
       </div>
       <PosterStats poster={p} />
       <div className="agency-info-grid">

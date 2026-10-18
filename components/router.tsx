@@ -28,6 +28,7 @@ const Shortlists = dynamic(() =>
   import("./workspace").then((m) => m.Shortlists),
 );
 const Work = dynamic(() => import("./workspace").then((m) => m.Work));
+const Payments = dynamic(() => import("./deals").then((m) => m.Payments));
 const Auth = dynamic(() => import("./forms").then((m) => m.Auth));
 const Onboarding = dynamic(() => import("./forms").then((m) => m.Onboarding));
 const CreateCampaign = dynamic(() =>
@@ -91,6 +92,7 @@ export function PageRouter({ path }: { path: string[] }) {
       page = <Pipeline id={id} />;
     else if (sub === "campaigns") page = <MyCampaigns />;
     else if (sub === "lists") page = <Shortlists />;
+    else if (sub === "payments") page = <Payments />;
     else if (sub === "settings") page = <Settings brand />;
   }
   return (

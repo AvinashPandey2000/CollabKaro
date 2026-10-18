@@ -17,12 +17,21 @@ import {
   Trash2,
   Flag,
   Download,
+  CalendarPlus,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, seesNotice } from "@/lib/store";
 import { creators, posters, campaigns } from "@/lib/api";
 import { maskContact } from "@/lib/format";
 import { Empty } from "./marketplace";
 import { Dialog } from "./ui/dialog";
+import {
+  CallCard,
+  CallDialog,
+  VoiceNote,
+  VoiceRecorder,
+  callWhen,
+} from "./chat-extras";
+import type { CallInvite, Message } from "@/types";
 export function Messages() {
   const params = useSearchParams();
   const s = useStore();
@@ -36,6 +45,9 @@ export function Messages() {
   const [attachment, setAttachment] = useState("");
   const [report, setReport] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const [reschedule, setReschedule] = useState<Message | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brand = s.role === "Brand-Agency";
@@ -58,37 +70,78 @@ export function Messages() {
     },
     [],
   );
+  const now = () =>
+    new Date().toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  // Posts a message from the viewer, then a simulated reply from the partner.
+  const post = (
+    message: Omit<Message, "id" | "sender" | "time">,
+    reply = "Thanks for sharing! Let’s discuss the creative direction and the next steps.",
+    onReply?: () => void,
+  ) => {
+    if (!thread || blocked) return;
+    const threadId = active;
+    s.send(threadId, {
+      ...message,
+      id: crypto.randomUUID(),
+      sender: brand ? "brand" : "creator",
+      time: now(),
+    });
+    setTyping(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      onReply?.();
+      s.send(threadId, {
+        id: crypto.randomUUID(),
+        body: reply,
+        sender: brand ? "creator" : "brand",
+        time: now(),
+      });
+      setTyping(false);
+    }, 1500);
+  };
   const send = () => {
     if ((!text.trim() && !attachment) || !thread || blocked) return;
     const body = maskContact(text.trim(), hired);
-    s.send(active, {
-      id: crypto.randomUUID(),
+    post({
       body: body || "Shared an attachment",
-      sender: brand ? "brand" : "creator",
-      time: new Date().toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
       attachment: attachment || undefined,
     });
     if (body !== text.trim())
       toast.info("Contact details are hidden until hire.");
     setText("");
     setAttachment("");
+  };
+  const sendCall = (call: CallInvite, replacing?: Message) => {
+    if (replacing?.call)
+      s.updateMessage(active, replacing.id, {
+        call: { ...replacing.call, status: "declined" },
+      });
+    const id = crypto.randomUUID();
+    const threadId = active;
+    // The simulated partner accepts, so the full flow can be tried in the demo.
+    s.send(threadId, {
+      id,
+      body: `Call invite: ${call.topic}, ${callWhen(call)}`,
+      sender: brand ? "brand" : "creator",
+      time: now(),
+      call,
+    });
     setTyping(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      s.send(active, {
+      s.updateMessage(threadId, id, { call: { ...call, status: "accepted" } });
+      s.send(threadId, {
         id: crypto.randomUUID(),
-        body: "Thanks for sharing! Let’s discuss the creative direction and the next steps.",
+        body: "Works for me. See you then!",
         sender: brand ? "creator" : "brand",
-        time: new Date().toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        time: now(),
       });
       setTyping(false);
     }, 1500);
+    toast.success("Call invite sent.");
   };
   return (
     <>
@@ -184,13 +237,24 @@ export function Messages() {
                     {hired ? "Hired collaboration" : "Campaign conversation"}
                   </small>
                 </div>
-                <button
-                  className="icon-button"
-                  aria-label="Report or block conversation"
-                  onClick={() => setReport(true)}
-                >
-                  <Flag size={18} />
-                </button>
+                <div className="chat-heading-actions">
+                  <button
+                    className="icon-button"
+                    aria-label="Schedule a call"
+                    title="Schedule a call"
+                    disabled={blocked}
+                    onClick={() => setCallOpen(true)}
+                  >
+                    <CalendarPlus size={18} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label="Report or block conversation"
+                    onClick={() => setReport(true)}
+                  >
+                    <Flag size={18} />
+                  </button>
+                </div>
               </div>
               <div className="chat-safety">
                 <ShieldCheck size={15} />
@@ -205,7 +269,31 @@ export function Messages() {
                     key={m.id}
                     className={`message ${m.sender === (brand ? "brand" : "creator") ? "mine" : ""}`}
                   >
-                    <p>{maskContact(m.body, hired)}</p>
+                    {m.call ? (
+                      <CallCard
+                        call={m.call}
+                        mine={m.sender === (brand ? "brand" : "creator")}
+                        partner={partner || "your collaborator"}
+                        onStatus={(status) => {
+                          s.updateMessage(active, m.id, {
+                            call: { ...m.call!, status },
+                          });
+                          toast.success(
+                            {
+                              accepted: "Call confirmed.",
+                              declined: "Invite declined.",
+                              cancelled: "Call cancelled.",
+                              proposed: "",
+                            }[status],
+                          );
+                        }}
+                        onReschedule={() => setReschedule(m)}
+                      />
+                    ) : m.voice ? (
+                      <VoiceNote url={m.voice.url} seconds={m.voice.seconds} />
+                    ) : (
+                      <p>{maskContact(m.body, hired)}</p>
+                    )}
                     {m.attachment && (
                       <span className="message-attachment">
                         <Paperclip size={16} />
@@ -253,34 +341,53 @@ export function Messages() {
                   send();
                 }}
               >
-                <label className="icon-button" aria-label="Attach a file">
-                  <Paperclip size={21} />
-                  <input
-                    className="visually-hidden"
-                    type="file"
-                    onChange={(e) =>
-                      setAttachment(e.target.files?.[0]?.name || "")
-                    }
-                  />
-                </label>
-                <input
-                  aria-label="Message"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
+                {!recording && (
+                  <>
+                    <label className="icon-button" aria-label="Attach a file">
+                      <Paperclip size={21} />
+                      <input
+                        className="visually-hidden"
+                        type="file"
+                        onChange={(e) =>
+                          setAttachment(e.target.files?.[0]?.name || "")
+                        }
+                      />
+                    </label>
+                    <input
+                      aria-label="Message"
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      disabled={blocked}
+                      placeholder={
+                        blocked
+                          ? "Conversation blocked in this session"
+                          : "Your next great idea starts here…"
+                      }
+                    />
+                  </>
+                )}
+                <VoiceRecorder
                   disabled={blocked}
-                  placeholder={
-                    blocked
-                      ? "Conversation blocked in this session"
-                      : "Your next great idea starts here…"
+                  onRecordingChange={setRecording}
+                  onSend={(voice) =>
+                    post(
+                      {
+                        body: `Voice note (${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, "0")})`,
+                        voice,
+                      },
+                      "Thanks for the voice note! Let me get back to you on that.",
+                    )
                   }
                 />
-                <button
-                  className="button icon-button"
-                  aria-label="Send message"
-                  disabled={blocked || (!text.trim() && !attachment)}
-                >
-                  <Send size={19} />
-                </button>
+                {!recording && (
+                  <button
+                    className="button icon-button"
+                    aria-label="Send message"
+                    disabled={blocked || (!text.trim() && !attachment)}
+                  >
+                    <Send size={19} />
+                  </button>
+                )}
               </form>
             </>
           ) : (
@@ -293,6 +400,25 @@ export function Messages() {
           )}
         </section>
       </div>
+      {callOpen && (
+        <CallDialog
+          open
+          onOpenChange={setCallOpen}
+          partner={partner || "your collaborator"}
+          phoneAllowed={hired}
+          onSchedule={(call) => sendCall(call)}
+        />
+      )}
+      {reschedule?.call && (
+        <CallDialog
+          open
+          onOpenChange={(o) => !o && setReschedule(null)}
+          partner={partner || "your collaborator"}
+          phoneAllowed={hired}
+          initial={reschedule.call}
+          onSchedule={(call) => sendCall(call, reschedule)}
+        />
+      )}
       <Dialog
         open={report}
         onOpenChange={setReport}
@@ -352,22 +478,30 @@ export function Notifications() {
           Mark all as read
         </button>
       </div>
-      {s.notifications.map((n) => (
-        <Link
-          className={`panel notice ${!n.read ? "unread" : ""}`}
-          href={n.href}
-          key={n.id}
-        >
-          <span className="notice-icon">
-            <Bell size={20} />
-          </span>
-          <div>
-            <h3>{n.title}</h3>
-            <p>{n.body}</p>
-          </div>
-          {!n.read && <span className="badge soft">New</span>}
-        </Link>
-      ))}
+      {s.notifications.filter((n) => seesNotice(n, s.role)).length === 0 && (
+        <Empty
+          title="Nothing new yet."
+          text="Updates about your collabs will show up here."
+        />
+      )}
+      {s.notifications
+        .filter((n) => seesNotice(n, s.role))
+        .map((n) => (
+          <Link
+            className={`panel notice ${!n.read ? "unread" : ""}`}
+            href={n.href}
+            key={n.id}
+          >
+            <span className="notice-icon">
+              <Bell size={20} />
+            </span>
+            <div>
+              <h3>{n.title}</h3>
+              <p>{n.body}</p>
+            </div>
+            {!n.read && <span className="badge soft">New</span>}
+          </Link>
+        ))}
     </>
   );
 }

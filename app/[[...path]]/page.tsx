@@ -34,6 +34,7 @@ const staticRoutes = [
   "a/discover",
   "a/lists",
   "a/settings",
+  "a/payments",
   "messages",
   "notifications",
   "settings",

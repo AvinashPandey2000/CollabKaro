@@ -8,18 +8,21 @@ export function Dialog({
   title,
   description,
   children,
+  className = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
   children: ReactNode;
+  /** Extra class on the panel, e.g. "wide". */
+  className?: string;
 }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="modal-overlay" />
-        <DialogPrimitive.Content className="modal">
+        <DialogPrimitive.Content className={`modal ${className}`}>
           <DialogPrimitive.Title asChild>
             <h2>{title}</h2>
           </DialogPrimitive.Title>

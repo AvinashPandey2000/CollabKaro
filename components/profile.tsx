@@ -11,8 +11,6 @@ import {
   ArrowUpRight,
   MessageCircle,
   Bookmark,
-  Camera as Instagram,
-  Video as Youtube,
   Eye,
   Heart,
   Clock,
@@ -21,12 +19,61 @@ import {
   Check,
   Star,
   ChevronLeft,
+  Play,
 } from "lucide-react";
 import { creators, campaigns } from "@/lib/api";
 import { formatCount, formatINR } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { Dialog } from "./ui/dialog";
+import { SearchSelect } from "./ui/search-select";
 import { Empty } from "./marketplace";
+import { PlatformIcon } from "./cards";
+import {
+  completedCollabs,
+  embedUrl,
+  insights,
+  isVideoFormat,
+  platformLabels,
+} from "@/lib/creator-insights";
+import { platforms } from "@/lib/api";
+import type { Creator } from "@/types";
+
+// The same platform switcher appears in each section, kept in sync.
+function PlatformTabs({
+  c,
+  value,
+  onChange,
+  compact = false,
+}: {
+  c: Creator;
+  value: string;
+  onChange: (p: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`platform-tabs ${compact ? "compact" : ""}`}
+      role="tablist"
+      aria-label="Platform"
+    >
+      {platforms.map((p) => {
+        const on = c.platforms.find((x) => x.name === p);
+        return (
+          <button
+            key={p}
+            role="tab"
+            aria-selected={value === p}
+            className={value === p ? "selected" : ""}
+            onClick={() => onChange(p)}
+          >
+            <PlatformIcon platform={p} size={16} /> {p}
+            {!compact && on && <small>{formatCount(on.followers)}</small>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 import { toast } from "sonner";
 const GrowthChart = dynamic(
   () => import("./charts").then((m) => m.GrowthChart),
@@ -52,8 +99,8 @@ export function CreatorProfile({ username }: { username: string }) {
         }
       : base;
   const router = useRouter();
-  const [platform, setPlatform] = useState("Instagram");
-  const [content, setContent] = useState<number | null>(null);
+  const [platform, setPlatform] = useState(c?.platform ?? "Instagram");
+  const [content, setContent] = useState<string | null>(null);
   const [invite, setInvite] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("ca-1");
   if (!c)
@@ -66,7 +113,17 @@ export function CreatorProfile({ username }: { username: string }) {
       />
     );
   const brand = store.role === "Brand-Agency";
-  const social = c.platforms.find((p) => p.name === platform)!;
+  const stats = insights(c, platform);
+  const labels = platformLabels[platform] ?? platformLabels.Instagram;
+  const own = c.id === "cr-1";
+  const allWork = [...(own ? store.portfolio : []), ...c.content];
+  const work = allWork.filter((x) => (x.platform ?? c.platform) === platform);
+  const preview = allWork.find((x) => x.id === content);
+  const collabs = [
+    ...completedCollabs(c.id, store.deals, mergeCampaigns(store.campaigns)),
+    ...(own ? store.pastCollabs : []),
+    ...c.collaborations,
+  ];
   const message = () => {
     if (!brand) {
       toast.info(
@@ -151,135 +208,219 @@ export function CreatorProfile({ username }: { username: string }) {
           <div className="panel">
             <h2>A little about me.</h2>
             <p>{c.bio}</p>
-            <div className="platform-tabs">
-              {c.platforms.map((p) => (
-                <button
-                  className={platform === p.name ? "selected" : ""}
-                  key={p.name}
-                  onClick={() => setPlatform(p.name)}
-                >
-                  {p.name === "Instagram" ? (
-                    <Instagram size={18} />
-                  ) : (
-                    <Youtube size={18} />
-                  )}{" "}
-                  {p.name}
-                </button>
-              ))}
-            </div>
-            <div className="profile-stat-row">
-              <div>
-                <strong>{formatCount(social.followers)}</strong>
-                <small>Followers</small>
-              </div>
-              <div>
-                <strong>{formatCount(c.views)}</strong>
-                <small>Average views</small>
-              </div>
-              <div>
-                <strong>{c.engagement}%</strong>
-                <small>Engagement rate</small>
-              </div>
-            </div>
-            <h3>Growing a real community.</h3>
-            <span className="muted">
-              Follower growth over the last 90 days / sample social data
-            </span>
-            <GrowthChart data={c.growth} />
+            <PlatformTabs c={c} value={platform} onChange={setPlatform} />
+            {stats ? (
+              <>
+                <div className="profile-stat-row">
+                  <div>
+                    <strong>{formatCount(stats.followers)}</strong>
+                    <small>{labels.followers}</small>
+                  </div>
+                  <div>
+                    <strong>{formatCount(stats.avgViews)}</strong>
+                    <small>{labels.views}</small>
+                  </div>
+                  <div>
+                    <strong>{stats.engagement}%</strong>
+                    <small>Engagement rate</small>
+                  </div>
+                </div>
+                <h3>Growing a real community.</h3>
+                <span className="muted">
+                  {platform} {labels.followers.toLowerCase()} over the last 90
+                  days / sample social data
+                </span>
+                <GrowthChart data={stats.growth} />
+              </>
+            ) : (
+              <p className="muted platform-missing">
+                {c.name.split(" ")[0]} isn’t on {platform} yet.
+              </p>
+            )}
           </div>
           <section className="profile-section">
-            <h2>The content that connected.</h2>
-            <p className="muted">A few stories my community loved.</p>
-            <div className="viral-grid">
-              {c.content.map((item, i) => (
-                <button
-                  className="viral-card"
-                  key={item.id}
-                  onClick={() => setContent(i)}
-                >
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    fill
-                    sizes="(max-width:768px) 50vw, 25vw"
-                  />
-                  <div>
-                    <span>{item.type}</span>
-                    <strong>{item.title}</strong>
-                    <span>
-                      <Eye size={14} />
-                      {formatCount(item.views)}
-                      <Heart size={14} />
-                      {formatCount(item.likes)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+            <div className="section-row">
+              <div>
+                <h2>The content that connected.</h2>
+                <p className="muted">
+                  {platform} {labels.content} my community loved.
+                </p>
+              </div>
+              <PlatformTabs
+                c={c}
+                value={platform}
+                onChange={setPlatform}
+                compact
+              />
             </div>
+            {work.length ? (
+              <div className="viral-grid">
+                {work.map((item) => (
+                  <button
+                    className="viral-card"
+                    key={item.id}
+                    onClick={() => setContent(item.id)}
+                    aria-label={`Preview ${item.title}`}
+                  >
+                    <Image
+                      src={item.image}
+                      alt=""
+                      fill
+                      sizes="(max-width:768px) 50vw, 25vw"
+                    />
+                    {isVideoFormat(item.format ?? item.type) && (
+                      <span className="viral-play" aria-hidden>
+                        <Play size={18} fill="currentColor" />
+                      </span>
+                    )}
+                    {item.duration && (
+                      <span className="viral-duration">{item.duration}</span>
+                    )}
+                    <div>
+                      <span>
+                        <PlatformIcon
+                          platform={item.platform ?? c.platform}
+                          size={12}
+                        />{" "}
+                        {item.format ?? item.type}
+                      </span>
+                      <strong>{item.title}</strong>
+                      <span>
+                        <Eye size={14} />
+                        {formatCount(item.views)}
+                        <Heart size={14} />
+                        {formatCount(item.likes)}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="muted platform-missing">
+                No {platform} work added yet.
+              </p>
+            )}
           </section>
           <section className="profile-section">
-            <h2>Meet my community.</h2>
-            <p className="muted">
-              {c.india}% India-based audience / sample insights
-            </p>
-            <div className="audience-grid">
-              <div className="panel">
-                <h3>Top cities</h3>
-                {c.audience.map((a, i) => (
-                  <div className="audience-bar" key={`${a.city}-${i}`}>
-                    <span>
-                      {a.city}
-                      <strong>{a.value}%</strong>
-                    </span>
-                    <div>
-                      <i style={{ width: `${a.value * 2.5}%` }} />
-                    </div>
-                  </div>
-                ))}
+            <div className="section-row">
+              <div>
+                <h2>Meet my community.</h2>
+                <p className="muted">
+                  {stats
+                    ? `${stats.india}% India-based audience on ${platform} / sample insights`
+                    : `No ${platform} audience yet.`}
+                </p>
               </div>
-              <div className="panel">
-                <h3>Age groups</h3>
-                {c.ages.map((a) => (
-                  <div className="audience-bar" key={a.age}>
-                    <span>
-                      {a.age}
-                      <strong>{a.value}%</strong>
-                    </span>
-                    <div>
-                      <i style={{ width: `${a.value * 2}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="panel">
-                <h3>Audience mix</h3>
-                <GenderChart data={c.gender} />
-              </div>
+              <PlatformTabs
+                c={c}
+                value={platform}
+                onChange={setPlatform}
+                compact
+              />
             </div>
-          </section>
-          <section className="panel">
-            <h2>Brands I’ve created with.</h2>
-            {c.collaborations.map((b) => (
-              <div className="collab-history" key={b.brand}>
-                <span className="monogram">{b.brand[0]}</span>
-                <div>
-                  <h3>{b.brand}</h3>
-                  <p>{b.result}</p>
+            {stats && (
+              <div className="audience-grid">
+                <div className="panel">
+                  <h3>Top cities</h3>
+                  {stats.audience.map((a, i) => (
+                    <div className="audience-bar" key={`${a.city}-${i}`}>
+                      <span>
+                        {a.city}
+                        <strong>{a.value}%</strong>
+                      </span>
+                      <div>
+                        <i style={{ width: `${a.value * 2.5}%` }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <BadgeCheck size={21} className="brand-text" />
+                <div className="panel">
+                  <h3>Age groups</h3>
+                  {stats.ages.map((a) => (
+                    <div className="audience-bar" key={a.age}>
+                      <span>
+                        {a.age}
+                        <strong>{a.value}%</strong>
+                      </span>
+                      <div>
+                        <i style={{ width: `${a.value * 2}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="panel">
+                  <h3>Audience mix</h3>
+                  <GenderChart key={platform} data={stats.gender} />
+                </div>
               </div>
-            ))}
+            )}
           </section>
           <section className="panel profile-section">
-            <h2>A few kind words.</h2>
-            {c.testimonials.map((t) => (
-              <div key={t.name}>
-                <span className="stars">★★★★★</span>
-                <p>“{t.text}”</p>
-                <strong>{t.name}</strong>
-                <small className="block muted">Sample brand testimonial</small>
+            <h2>Brands I’ve worked with.</h2>
+            <p className="muted">What we made together, and how it went.</p>
+            {collabs.length ? (
+              <div className="collab-list">
+                {collabs.map((b, i) => (
+                  <article className="collab-card" key={`${b.brand}-${i}`}>
+                    <div className="collab-card-head">
+                      <span className="monogram">{b.brand[0]}</span>
+                      <div>
+                        <h3>{b.brand}</h3>
+                        <small>
+                          {[b.platform, b.made, b.year]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      </div>
+                      {b.viaCollabKaro ? (
+                        <span className="badge lime">
+                          <BadgeCheck size={13} /> Completed on CollabKaro
+                        </span>
+                      ) : (
+                        <span className="badge soft">Shared by creator</span>
+                      )}
+                    </div>
+                    <p>{b.result}</p>
+                    {b.results && b.results.length > 0 && (
+                      <div className="collab-results">
+                        {b.results.map((r) => (
+                          <div key={r.label}>
+                            <strong>{r.value}</strong>
+                            <small>{r.label}</small>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {b.quote && (
+                      <blockquote>
+                        “{b.quote.text}”
+                        <footer>
+                          {b.quote.name}
+                          {!b.viaCollabKaro && " · sample brand note"}
+                        </footer>
+                      </blockquote>
+                    )}
+                    {b.link && (
+                      <a
+                        className="text-button"
+                        href={b.link}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        See the post
+                        <ArrowUpRight size={14} />
+                      </a>
+                    )}
+                  </article>
+                ))}
               </div>
-            ))}
+            ) : (
+              <p className="muted">No brand collabs added yet.</p>
+            )}
+            <small className="block muted">
+              Results are reported by the creator unless marked “Completed on
+              CollabKaro”. Sample data in this demo.
+            </small>
           </section>
         </div>
         <aside>
@@ -360,24 +501,59 @@ export function CreatorProfile({ username }: { username: string }) {
         </aside>
       </div>
       <Dialog
-        open={content !== null}
+        open={!!preview}
         onOpenChange={(o) => !o && setContent(null)}
-        title={content !== null ? c.content[content].title : "Content preview"}
-        description="Portfolio image preview. Video playback will be available when creator content is connected."
+        className="wide"
+        title={preview?.title ?? "Content preview"}
+        description={
+          preview
+            ? `${preview.platform ?? c.platform} ${preview.format ?? preview.type}${preview.duration ? ` · ${preview.duration}` : ""}`
+            : ""
+        }
       >
-        {content !== null && (
+        {preview && (
           <>
-            <Image
-              className="lightbox-image"
-              src={c.content[content].image}
-              width={800}
-              height={600}
-              alt={c.content[content].title}
-            />
+            {embedUrl(preview.url) ? (
+              <div
+                className={`embed-frame ${preview.platform === "Instagram" ? "tall" : ""}`}
+              >
+                <iframe
+                  src={embedUrl(preview.url)}
+                  title={preview.title}
+                  allow="encrypted-media; picture-in-picture; fullscreen"
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            ) : (
+              <Image
+                className="lightbox-image"
+                src={preview.image}
+                width={800}
+                height={600}
+                alt={preview.title}
+              />
+            )}
             <p>
-              {formatCount(c.content[content].views)} views /{" "}
-              {formatCount(c.content[content].likes)} likes
+              {formatCount(preview.views)} views / {formatCount(preview.likes)}{" "}
+              likes
             </p>
+            {preview.url ? (
+              <a
+                className="text-button"
+                href={preview.url}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Open on {preview.platform ?? "the platform"}
+                <ArrowUpRight size={14} />
+              </a>
+            ) : (
+              <p className="muted">
+                Sample portfolio item. When a creator adds a link to the real
+                post, it plays right here.
+              </p>
+            )}
           </>
         )}
       </Dialog>
@@ -389,19 +565,15 @@ export function CreatorProfile({ username }: { username: string }) {
         <div className="form-stack">
           <label className="field">
             <span>Pick your campaign</span>
-            <select
+            <SearchSelect
+              label="Pick your campaign"
               value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-            >
-              {[
+              onChange={setSelectedCampaign}
+              options={[
                 ...store.campaigns,
                 ...campaigns.filter((c) => c.posterId === "po-1"),
-              ].map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
+              ].map((c) => ({ value: c.id, label: c.title }))}
+            />
           </label>
           <button
             className="button"

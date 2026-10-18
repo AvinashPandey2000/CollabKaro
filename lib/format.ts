@@ -31,3 +31,40 @@ export function maskContact(text: string, hired = false) {
       return `${n.slice(-10, -8)}******${n.slice(-2)}`;
     });
 }
+export function campaignValue(c: {
+  type: "Paid" | "Barter" | "Affiliate";
+  min: number;
+  max: number;
+}) {
+  if (c.type === "Barter")
+    return { amount: `Worth ${formatINR(c.max)}`, label: "Product value" };
+  if (c.type === "Affiliate")
+    return {
+      amount: `Up to ${formatINR(c.max)}`,
+      label: "Estimated earnings (commission-based)",
+    };
+  return {
+    amount: `${formatINR(c.min)} - ${formatINR(c.max)}`,
+    label: "per creator",
+  };
+}
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+// A campaign can target several cities, stored as "Mumbai, Pune, Delhi".
+export const cityList = (city: string) =>
+  city
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+export const servesCity = (campaignCity: string, city: string) =>
+  campaignCity === "All India" || cityList(campaignCity).includes(city);
+// Short form for cards: "Mumbai, Pune +2".
+export function cityLabel(city: string) {
+  const list = cityList(city);
+  return list.length > 2
+    ? `${list.slice(0, 2).join(", ")} +${list.length - 2}`
+    : list.join(", ");
+}

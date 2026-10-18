@@ -21,13 +21,14 @@ import {
   Users,
   Plus,
   Settings,
+  Wallet,
   LogOut,
   Check,
   ShieldCheck,
 } from "lucide-react";
 import { Logo } from "./logo";
 import { Dialog } from "./ui/dialog";
-import { useStore } from "@/lib/store";
+import { useStore, seesNotice } from "@/lib/store";
 import { campaigns, creators, posters } from "@/lib/api";
 import type { Role } from "@/types";
 const creatorNav = [
@@ -44,13 +45,15 @@ const brandNav = [
   ["My campaigns", "/a/campaigns", Briefcase],
   ["Discover creators", "/a/discover", Users],
   ["Shortlists", "/a/lists", Bookmark],
+  ["Payments", "/a/payments", Wallet],
   ["Messages", "/messages", MessageCircle],
   ["Team & billing", "/a/settings", Settings],
 ] as const;
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, setRole, notifications } = useStore();
+  const { role, setRole, notifications: allNotices } = useStore();
+  const notifications = allNotices.filter((n) => seesNotice(n, role));
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -132,6 +135,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   {bell && (
                     <div className="bell-panel">
                       <h3>Notifications</h3>
+                      {notifications.length === 0 && (
+                        <small>Nothing new yet.</small>
+                      )}
                       {notifications.slice(0, 3).map((n) => (
                         <Link
                           key={n.id}

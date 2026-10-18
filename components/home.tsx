@@ -32,6 +32,9 @@ import {
   photo,
 } from "@/lib/api";
 import { CampaignCard, CreatorCard } from "./cards";
+import { formatCount, campaignValue } from "@/lib/format";
+import { SearchSelect } from "./ui/search-select";
+import { MultiSelect } from "./ui/multi-select";
 import { CommunityStats } from "./community-stats";
 export function Home() {
   const [side, setSide] = useState("creator");
@@ -39,6 +42,11 @@ export function Home() {
   const [platform, setPlatform] = useState("");
   const [niche, setNiche] = useState("");
   const [city, setCity] = useState("");
+  const heroCreator = side === "brand" ? creators[1] : creators[0];
+  // The floating card links to this campaign, so show its real budget.
+  const heroCampaign =
+    campaigns.find((c) => c.slug === "festive-fashion-edit") ?? campaigns[0];
+  const showcase = posters.find((p) => p.slug === "social-sutra") || posters[0];
   const router = useRouter();
   const reduce = useReducedMotion();
   useEffect(() => {
@@ -72,6 +80,7 @@ export function Home() {
               <button
                 className={side === "creator" ? "selected" : ""}
                 onClick={() => setSide("creator")}
+                aria-pressed={side === "creator"}
               >
                 <UserIcon />
                 I’m a Creator
@@ -79,6 +88,7 @@ export function Home() {
               <button
                 className={side === "brand" ? "selected" : ""}
                 onClick={() => setSide("brand")}
+                aria-pressed={side === "brand"}
               >
                 <Briefcase size={15} />
                 I’m a Brand
@@ -87,22 +97,22 @@ export function Home() {
             <h1>
               {side === "creator" ? (
                 <>
-                  Your creativity.
+                  Brand collabs,
                   <br />
-                  Your next{" "}
+                  without the{" "}
                   <span className="hero-highlight">
-                    big collab.
+                    cold DMs.
                     <span className="scribble" />
                   </span>
                 </>
               ) : (
                 <>
-                  Great brands.
+                  Find creators
                   <br />
-                  Meet your next
+                  who fit your
                   <br />
                   <span className="hero-highlight">
-                    great creator.
+                    brief.
                     <span className="scribble" />
                   </span>
                 </>
@@ -110,8 +120,8 @@ export function Home() {
             </h1>
             <p className="hero-description">
               {side === "creator"
-                ? "Find brands that get your vibe. Apply to exciting campaigns, create what you love, and get paid for it."
-                : "Find authentic voices for your brand. Discover creators, post your brief, and make great work happen."}
+                ? "Brands post their briefs here with the budget, deliverables and deadline upfront. Pick the ones that suit your niche and apply in a few taps."
+                : "Filter creators by niche, city, language, platform and engagement. Post one brief with your budget, then review, hire and pay creators from one place."}
               <br />
               <strong>Collab karo. Grow karo.</strong>
             </p>
@@ -146,8 +156,11 @@ export function Home() {
                 ))}
               </div>
               <div>
-                <span className="stars">★★★★★</span>
-                <span>Your next opportunity starts here.</span>
+                <span>
+                  {side === "creator"
+                    ? "Every brief shows the budget before you apply."
+                    : "Compare reach, engagement and rates before you reach out."}
+                </span>
               </div>
             </div>
           </motion.div>
@@ -160,44 +173,70 @@ export function Home() {
         >
           <div className="hero-grid-bg" />
           <div className="orbit-label">
-            <Sparkles size={16} /> {["Creators", "Brands", "Agencies"][word]}{" "}
-            meet possibility
+            <Sparkles size={16} />{" "}
+            {side === "creator"
+              ? `${["Paid", "Barter", "Affiliate"][word]} briefs, one place`
+              : "Instagram · YouTube · LinkedIn"}
           </div>
           <div className="hero-photo-main">
             <Image
-              src={photo("photo-1524504388940-b1c1722653e1", 900)}
-              alt="Creator ready for her next brand collaboration"
+              src={
+                side === "creator"
+                  ? photo("photo-1763817959544-9d42878f160d", 900)
+                  : "/brand-campaign-hero.png"
+              }
+              alt={
+                side === "creator"
+                  ? "Indian woman smiling in a patterned outfit"
+                  : "Indian brand team planning a creator campaign"
+              }
               fill
               priority
               sizes="(max-width: 768px) 85vw, 38vw"
             />
             <div className="hero-photo-caption">
-              <span className="badge lime">CREATE. CONNECT. GROW.</span>
-              <strong>
-                Made for your
-                <br />
-                kind of creative.
-              </strong>
+              <span className="badge lime">
+                {side === "creator"
+                  ? "BUDGET ON EVERY BRIEF."
+                  : "SEE THE NUMBERS FIRST."}
+              </span>
+              {side === "creator" ? (
+                <strong>
+                  Brief dekho.
+                  <br />
+                  Apply karo.
+                </strong>
+              ) : (
+                <strong>
+                  Sahi creator.
+                  <br />
+                  Sahi audience.
+                </strong>
+              )}
             </div>
           </div>
-          <Link href="/creator/aanya.sharma" className="hero-profile-float">
+          <Link
+            href={`/creator/${heroCreator.username}`}
+            className="hero-profile-float"
+          >
             <Image
-              src={creators[0].avatar}
+              src={heroCreator.avatar}
               width={42}
               height={42}
-              alt="Aanya Sharma"
+              alt={heroCreator.name}
             />
             <div>
               <strong>
-                Aanya Sharma <BadgeCheck size={13} />
+                {heroCreator.name}{" "}
+                {heroCreator.verified && <BadgeCheck size={13} />}
               </strong>
-              <small>Fashion & lifestyle creator</small>
+              <small>{heroCreator.niche} & lifestyle creator</small>
               <div className="mini-stats">
                 <b>
-                  1.2L <span>followers</span>
+                  {formatCount(heroCreator.followers)} <span>followers</span>
                 </b>
                 <b>
-                  5.8% <span>engagement</span>
+                  {heroCreator.engagement}% <span>engagement</span>
                 </b>
               </div>
             </div>
@@ -207,27 +246,54 @@ export function Home() {
           </Link>
           <Link
             className="hero-campaign-float"
-            href="/campaigns/festive-fashion-edit"
+            href={
+              side === "creator"
+                ? "/campaigns/festive-fashion-edit"
+                : "/a/campaigns/new"
+            }
           >
             <div className="float-card-top">
               <span className="monogram" style={{ background: "#efe9ff" }}>
-                K
+                {side === "creator" ? heroCampaign.brand[0] : "+"}
               </span>
               <div>
                 <strong>
-                  Kurta Kraft <BadgeCheck size={12} />
+                  {side === "creator" ? heroCampaign.brand : "Your brand"}{" "}
+                  {side === "creator" &&
+                    posters.find((p) => p.id === heroCampaign.posterId)
+                      ?.verified && <BadgeCheck size={12} />}
                 </strong>
-                <small>New campaign just dropped</small>
+                <small>
+                  {side === "creator"
+                    ? "New campaign just dropped"
+                    : "Your next campaign starts here"}
+                </small>
               </div>
-              <span className="badge coral">PAID</span>
+              <span className="badge coral">
+                {side === "creator" ? "PAID" : "NEW"}
+              </span>
             </div>
             <div className="float-title">
-              The festive edit.
-              <br />
-              Styled by you.
+              {side === "creator" ? (
+                <>
+                  The festive edit.
+                  <br />
+                  Styled by you.
+                </>
+              ) : (
+                <>
+                  Your next idea.
+                  <br />
+                  Made together.
+                </>
+              )}
             </div>
             <div>
-              <span>₹15,000 - ₹25,000</span>
+              <span>
+                {side === "creator"
+                  ? campaignValue(heroCampaign).amount
+                  : "Create a brief"}
+              </span>
               <ArrowUpRight size={20} />
             </div>
           </Link>
@@ -236,8 +302,16 @@ export function Home() {
               <Check size={15} />
             </span>
             <div>
-              <strong>You’re hired!</strong>
-              <small>Let’s make something great.</small>
+              <strong>
+                {side === "creator"
+                  ? "You’re shortlisted"
+                  : "Creator shortlisted"}
+              </strong>
+              <small>
+                {side === "creator"
+                  ? "The brand wants to talk next."
+                  : "Next: chat, agree the fee, sign."}
+              </small>
             </div>
             <Heart size={18} />
           </div>
@@ -245,9 +319,19 @@ export function Home() {
             <Sparkles size={36} />
           </div>
           <span className="hero-note">
-            Less cold DMs.
-            <br />
-            More warm hellos.
+            {side === "creator" ? (
+              <>
+                “What’s the budget?”
+                <br />
+                Right on the brief.
+              </>
+            ) : (
+              <>
+                No more chasing
+                <br />
+                creators in DMs.
+              </>
+            )}
           </span>
         </motion.div>
       </section>
@@ -263,15 +347,13 @@ export function Home() {
               <Instagram size={18} />
               <span>
                 <small>PLATFORM</small>
-                <select
+                <MultiSelect
+                  label="Platform"
                   value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                >
-                  <option value="">All platforms</option>
-                  {platforms.map((p) => (
-                    <option key={p}>{p}</option>
-                  ))}
-                </select>
+                  onChange={setPlatform}
+                  placeholder="All platforms"
+                  options={platforms}
+                />
               </span>
               <ChevronDown size={15} />
             </label>
@@ -279,15 +361,13 @@ export function Home() {
               <Sparkles size={18} />
               <span>
                 <small>YOUR NICHE</small>
-                <select
+                <SearchSelect
+                  label="Your niche"
                   value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                >
-                  <option value="">All categories</option>
-                  {niches.map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
+                  onChange={setNiche}
+                  placeholder="All categories"
+                  options={niches}
+                />
               </span>
               <ChevronDown size={15} />
             </label>
@@ -295,12 +375,13 @@ export function Home() {
               <MapPin size={18} />
               <span>
                 <small>LOCATION</small>
-                <select value={city} onChange={(e) => setCity(e.target.value)}>
-                  <option value="">Anywhere in India</option>
-                  {cities.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
+                <SearchSelect
+                  label="Location"
+                  value={city}
+                  onChange={setCity}
+                  placeholder="Anywhere in India"
+                  options={cities}
+                />
               </span>
               <ChevronDown size={15} />
             </label>
@@ -443,57 +524,145 @@ export function Home() {
                 ))}
               </div>
             </div>
-            <div className="transparency-demo">
-              <div className="demo-heading">
-                <span
-                  className="monogram large"
-                  style={{ background: "#efe9ff" }}
-                >
-                  S
+            {side === "creator" ? (
+              <div className="transparency-demo">
+                <div className="demo-heading">
+                  <span
+                    className="monogram large"
+                    style={{ background: showcase.color }}
+                  >
+                    {showcase.name[0]}
+                  </span>
+                  <div>
+                    <h3>
+                      {showcase.name}{" "}
+                      {showcase.verified && <BadgeCheck size={19} />}
+                    </h3>
+                    <span>
+                      {showcase.verified ? "Verified" : "Unverified"}{" "}
+                      {showcase.type.toLowerCase()} • {showcase.city}
+                    </span>
+                  </div>
+                  {showcase.verified && (
+                    <span className="badge lime">TRUSTED</span>
+                  )}
+                </div>
+                <div className="transparency-stats">
+                  <div>
+                    <strong>{showcase.posted}</strong>
+                    <span>Campaigns posted</span>
+                  </div>
+                  <div>
+                    <strong>{showcase.hired}</strong>
+                    <span>Creators hired</span>
+                  </div>
+                  <div>
+                    <strong>{showcase.response} hrs</strong>
+                    <span>Avg. response time</span>
+                  </div>
+                  <div>
+                    <strong>{showcase.onTime}%</strong>
+                    <span>Pays on time</span>
+                  </div>
+                </div>
+                <div className="agency-review">
+                  <div className="stars">
+                    ★★★★★{" "}
+                    <span>
+                      {showcase.rating.toFixed(1)} from {showcase.reviews}{" "}
+                      sample reviews
+                    </span>
+                  </div>
+                  <p>
+                    “Clear briefs, quick replies, and payments that arrive when
+                    they say they will.”
+                  </p>
+                  <span>Meera J. / Sample creator review</span>
+                </div>
+                <Link href={`/agency/${showcase.slug}`} className="text-button">
+                  Know who you’re collabing with <ArrowRight size={16} />
+                </Link>
+                <span className="transparency-tag">
+                  <ShieldCheck size={16} /> TRANSPARENCY IS OUR THING.
                 </span>
-                <div>
-                  <h3>
-                    Social Sutra <BadgeCheck size={19} />
-                  </h3>
-                  <span>Verified agency • Mumbai</span>
-                </div>
-                <span className="badge lime">TRUSTED</span>
               </div>
-              <div className="transparency-stats">
-                <div>
-                  <strong>82</strong>
-                  <span>Campaigns posted</span>
+            ) : (
+              <div className="transparency-demo">
+                <div className="demo-heading">
+                  <Image
+                    className="demo-avatar"
+                    src={heroCreator.avatar}
+                    width={55}
+                    height={55}
+                    alt={heroCreator.name}
+                  />
+                  <div>
+                    <h3>
+                      {heroCreator.name}{" "}
+                      {heroCreator.verified && <BadgeCheck size={19} />}
+                    </h3>
+                    <span>
+                      {heroCreator.verified ? "Verified" : "Unverified"}{" "}
+                      {heroCreator.niche.toLowerCase()} creator •{" "}
+                      {heroCreator.city}
+                    </span>
+                  </div>
+                  {heroCreator.verified && (
+                    <span className="badge lime">VERIFIED</span>
+                  )}
                 </div>
-                <div>
-                  <strong>246</strong>
-                  <span>Creators hired</span>
+                <div className="transparency-stats">
+                  <div>
+                    <strong>{formatCount(heroCreator.followers)}</strong>
+                    <span>Followers</span>
+                  </div>
+                  <div>
+                    <strong>{heroCreator.engagement}%</strong>
+                    <span>Engagement rate</span>
+                  </div>
+                  <div>
+                    <strong>{heroCreator.collaborations.length}</strong>
+                    <span>Brand collabs</span>
+                  </div>
+                  <div>
+                    <strong>{heroCreator.turnaround} days</strong>
+                    <span>Avg. turnaround</span>
+                  </div>
                 </div>
-                <div>
-                  <strong>4 hrs</strong>
-                  <span>Avg. response time</span>
-                </div>
-                <div>
-                  <strong>98%</strong>
-                  <span>Pays on time</span>
-                </div>
+                {heroCreator.testimonials[0] && (
+                  <div className="agency-review">
+                    <div className="stars">
+                      ★★★★★{" "}
+                      <span>
+                        {(
+                          heroCreator.testimonials.reduce(
+                            (n, t) => n + t.rating,
+                            0,
+                          ) / heroCreator.testimonials.length
+                        ).toFixed(1)}{" "}
+                        from {heroCreator.testimonials.length} sample{" "}
+                        {heroCreator.testimonials.length === 1
+                          ? "review"
+                          : "reviews"}
+                      </span>
+                    </div>
+                    <p>“{heroCreator.testimonials[0].text}”</p>
+                    <span>
+                      {heroCreator.testimonials[0].name} / Sample brand review
+                    </span>
+                  </div>
+                )}
+                <Link
+                  href={`/creator/${heroCreator.username}`}
+                  className="text-button"
+                >
+                  See their full media kit <ArrowRight size={16} />
+                </Link>
+                <span className="transparency-tag">
+                  <ShieldCheck size={16} /> KNOW WHO YOU’RE HIRING.
+                </span>
               </div>
-              <div className="agency-review">
-                <div className="stars">
-                  ★★★★★ <span>4.9 from 46 sample reviews</span>
-                </div>
-                <p>
-                  “Clear briefs, quick replies, and payments that arrive when
-                  they say they will.”
-                </p>
-                <span>Meera J. / Lifestyle creator</span>
-              </div>
-              <Link href="/agency/social-sutra" className="text-button">
-                Know who you’re collabing with <ArrowRight size={16} />
-              </Link>
-              <span className="transparency-tag">
-                <ShieldCheck size={16} /> TRANSPARENCY IS OUR THING.
-              </span>
-            </div>
+            )}
           </div>
         </div>
       </section>

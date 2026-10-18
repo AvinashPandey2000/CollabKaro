@@ -18,7 +18,24 @@ export const niches = [
   "Comedy",
   "Education",
   "Parenting",
-  "Auto",
+  // Cars, bikes and EVs. Kept at index 11 so seeded records don't shift.
+  "Automobile",
+  // Other common Indian creator categories, appended so seed data is unchanged.
+  "Lifestyle",
+  "Personal Blogging",
+  "Vlogging",
+  "Entertainment",
+  "Music & Dance",
+  "Art & DIY",
+  "Health & Wellness",
+  "Home & Decor",
+  "Pets",
+  "Sports",
+  "Photography",
+  "Business & Startups",
+  "Motivation",
+  "Spirituality",
+  "Sustainability",
 ];
 export const cities = [
   "Mumbai",
@@ -33,6 +50,35 @@ export const cities = [
   "Kolkata",
   "Chandigarh",
   "Surat",
+  // Appended so seeded records (cities[i % 12]) don't shift.
+  "Ahmedabad",
+  "Gurugram",
+  "Noida",
+  "Kochi",
+  "Thiruvananthapuram",
+  "Coimbatore",
+  "Madurai",
+  "Mysuru",
+  "Visakhapatnam",
+  "Vijayawada",
+  "Nagpur",
+  "Nashik",
+  "Bhopal",
+  "Vadodara",
+  "Rajkot",
+  "Udaipur",
+  "Jodhpur",
+  "Ludhiana",
+  "Amritsar",
+  "Dehradun",
+  "Kanpur",
+  "Varanasi",
+  "Patna",
+  "Ranchi",
+  "Raipur",
+  "Bhubaneswar",
+  "Guwahati",
+  "Goa",
 ];
 export const languages = [
   "Hindi",
@@ -47,23 +93,22 @@ export const languages = [
   "Gujarati",
   "Punjabi",
 ];
-export const platforms = [
-  "Instagram",
-  "YouTube",
-  "Moj",
-  "Josh",
-  "ShareChat",
-  "LinkedIn",
-  "X",
+// Supported platforms for now: Instagram, YouTube and LinkedIn only.
+export const platforms = ["Instagram", "YouTube", "LinkedIn"];
+// Real photographs taken in India. Source and licence details: docs/photo-sources.md.
+const womenPhotos = [
+  "photo-1763817959544-9d42878f160d",
+  "photo-1615965764382-446dba679790",
+  "photo-1669659033487-203d254e35a4",
+  "photo-1666160525588-95294b909229",
 ];
-const photos = [
-  "photo-1534528741775-53994a69daeb",
-  "photo-1500648767791-00dcc994a43e",
-  "photo-1524504388940-b1c1722653e1",
-  "photo-1506794778202-cad84cf45f1d",
-  "photo-1524250502761-1ac6f2e30d43",
-  "photo-1517841905240-472988babdf9",
+const menPhotos = [
+  "photo-1747373354116-671ba01db71b",
+  "photo-1712425718137-491250cfde88",
 ];
+const menIndexes = new Set([
+  1, 3, 6, 8, 10, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33,
+]);
 export const photo = (id: string, w = 700) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=85`;
 export const covers = [
@@ -112,54 +157,179 @@ const names = [
   "Sia Pillai",
   "Aditi Mishra",
 ];
+let womenPhotoIndex = 0;
+let menPhotoIndex = 0;
+const portraits = names.map((_, i) =>
+  menIndexes.has(i)
+    ? menPhotos[menPhotoIndex++ % menPhotos.length]
+    : womenPhotos[womenPhotoIndex++ % womenPhotos.length],
+);
+// Headline follower count; it is also the count on the creator's main platform
+// so cards, the homepage and the profile page always agree.
+const creatorFollowers = (i: number) =>
+  i === 0 ? 124800 : i === 1 ? 86300 : i === 2 ? 210600 : 5300 + i * i * 1780;
+const platformFollowers = (i: number, name: string, fallback: number) =>
+  platforms[i % 3] === name ? creatorFollowers(i) : fallback;
+// Sample per-platform insights. Audiences differ by platform (YouTube skews
+// to Tier-2 cities and older viewers, LinkedIn to metro professionals).
+const platformAudience = (k: number, home: string, i: number) => {
+  const picks = [
+    [home, "Delhi", "Bengaluru", "Pune", "Mumbai"],
+    [home, "Lucknow", "Jaipur", "Delhi", "Patna"],
+    ["Bengaluru", "Mumbai", "Hyderabad", "Delhi", "Pune"],
+  ][k];
+  const unique = [...new Set(picks)].slice(0, 4);
+  const shift = i % 5;
+  return {
+    audience: [
+      ...unique.map((city, j) => ({
+        city,
+        value: [32, 24, 19, 14][j] + (j === 0 ? shift : j === 3 ? -shift : 0),
+      })),
+      { city: "Other", value: 11 },
+    ],
+    ages: [
+      [42, 36, 16, 6],
+      [30, 38, 22, 10],
+      [12, 48, 28, 12],
+    ][k].map((value, j) => ({
+      age: ["18-24", "25-34", "35-44", "45+"][j],
+      value,
+    })),
+    gender: [
+      [61 - shift, 35 + shift, 4],
+      [44, 53, 3],
+      [38 + shift, 60 - shift, 2],
+    ][k].map((value, j) => ({ name: ["Women", "Men", "Other"][j], value })),
+    india: [89, 84, 78][k],
+  };
+};
+const growthTo = (followers: number, seed: number) =>
+  Array.from({ length: 90 }, (_, j) => ({
+    day: `Day ${j + 1}`,
+    followers: Math.round(
+      followers * (0.86 + (0.14 * j) / 89) +
+        Math.sin(j + seed) * followers * 0.004,
+    ),
+  }));
+const platformStats = (
+  i: number,
+  name: string,
+  handle: string,
+  followers: number,
+  engagement: number,
+  views: number,
+) => {
+  const k = platforms.indexOf(name);
+  const main = platforms[i % 3] === name;
+  return {
+    name,
+    handle,
+    followers,
+    engagement: main
+      ? engagement
+      : Math.max(1.2, Math.round((engagement + [0.4, -0.8, 0.6][k]) * 10) / 10),
+    avgViews: main ? views : Math.round(followers * [0.32, 0.55, 0.9][k]),
+    growth: growthTo(followers, i + k),
+    ...platformAudience(k, cities[i % 12], i),
+  };
+};
+const contentPlan = [
+  {
+    platform: "Instagram",
+    format: "Reel",
+    duration: "0:42",
+    title: "A day in my creative life",
+  },
+  {
+    platform: "Instagram",
+    format: "Carousel",
+    title: "My everyday essentials",
+  },
+  {
+    platform: "YouTube",
+    format: "Long video",
+    duration: "8:24",
+    title: "The honest weekend vlog",
+  },
+  {
+    platform: "YouTube",
+    format: "Short",
+    duration: "0:55",
+    title: "Something new to try",
+  },
+  {
+    platform: "LinkedIn",
+    format: "Video post",
+    duration: "1:30",
+    title: "Behind the scenes of a brand shoot",
+  },
+  {
+    platform: "LinkedIn",
+    format: "Document carousel",
+    title: "What I learned from 50 collabs",
+  },
+];
+const pastBrands = [
+  "Kurta Kraft",
+  "BoltFit",
+  "Glow Theory",
+  "Masala Box",
+  "PixelPop",
+];
 export const creators: Creator[] = names.map((name, i) => ({
   id: `cr-${i + 1}`,
   username: name.toLowerCase().replaceAll(" ", "."),
   name,
-  avatar: photo(photos[i % photos.length], 500),
+  avatar: photo(portraits[i], 500),
   cover: photo(covers[i % covers.length]),
   city: cities[i % 12],
-  languages: [languages[i % 11], "English"],
+  languages: [...new Set([languages[i % 11], "English"])],
   niche: niches[i % 12],
   niches: [niches[i % 12], i % 2 ? "Lifestyle" : "UGC"],
   bio: `Creating stories that feel real. ${niches[i % 12]} creator based in ${cities[i % 12]}, helping Indian brands connect with their next community. Let's make something worth watching.`,
   verified: i % 4 !== 3,
-  followers:
-    i === 0 ? 124800 : i === 1 ? 86300 : i === 2 ? 210600 : 5300 + i * i * 1780,
+  followers: creatorFollowers(i),
   engagement: Math.round((3.4 + (i % 7) * 0.63) * 10) / 10,
   views: 32000 + i * 9100,
   price: 8500 + i * 1700,
-  platform: platforms[i % 7],
+  platform: platforms[i % 3],
   platforms: [
-    {
-      name: "Instagram",
-      handle: `@${name.split(" ")[0].toLowerCase()}creates`,
-      followers: 124800 + i * 5900,
-    },
-    {
-      name: "YouTube",
-      handle: `@${name.split(" ")[0].toLowerCase()}studio`,
-      followers: 42000 + i * 1900,
-    },
-  ],
+    [
+      "Instagram",
+      `@${name.split(" ")[0].toLowerCase()}creates`,
+      124800 + i * 5900,
+    ],
+    ["YouTube", `@${name.split(" ")[0].toLowerCase()}studio`, 42000 + i * 1900],
+    [
+      "LinkedIn",
+      `in/${name.split(" ")[0].toLowerCase()}writes`,
+      2400 + i * 380,
+    ],
+  ].map(([p, handle, fallback]) =>
+    platformStats(
+      i,
+      p as string,
+      handle as string,
+      platformFollowers(i, p as string, fallback as number),
+      Math.round((3.4 + (i % 7) * 0.63) * 10) / 10,
+      32000 + i * 9100,
+    ),
+  ),
   growth: Array.from({ length: 90 }, (_, j) => ({
     day: `Day ${j + 1}`,
     followers: 80000 + i * 5000 + j * 470 + Math.sin(j) * 800,
   })),
-  content: Array.from({ length: 6 }, (_, j) => ({
+  content: contentPlan.map((item, j) => ({
     id: `content-${i}-${j}`,
     image: photo(covers[(i + j) % 6], 600),
-    title: [
-      "A day in my creative life",
-      "My everyday essentials",
-      "The weekend edit",
-      "Something new to try",
-      "Behind the scenes",
-      "Made with love",
-    ][j],
-    views: 64000 + j * 84300,
+    title: item.title,
+    views: 64000 + j * 84300 - (item.platform === "LinkedIn" ? 60000 : 0),
     likes: 1200 + j * 430,
-    type: j % 2 ? "Reel" : "Video",
+    type: item.format,
+    format: item.format,
+    duration: item.duration,
+    platform: item.platform,
     date: "2026-09-22",
   })),
   audience: [
@@ -182,8 +352,33 @@ export const creators: Creator[] = names.map((name, i) => ({
   ],
   india: 89,
   collaborations: [
-    { brand: "Kurta Kraft", result: "2.4L views across 3 reels" },
-    { brand: "BoltFit", result: "8,400 product link clicks" },
+    {
+      brand: pastBrands[i % 5],
+      platform: "Instagram",
+      made: "3 Reels + 4 Stories",
+      year: "2026",
+      result: "2.4L views across 3 reels",
+      results: [
+        { label: "Views", value: "2.4L" },
+        { label: "Saves", value: "3.1K" },
+        { label: "Engagement", value: "5.2%" },
+      ],
+      quote: {
+        text: "Thoughtful content, clear communication, and every deadline met.",
+        name: `Ritika, ${pastBrands[i % 5]}`,
+      },
+    },
+    {
+      brand: pastBrands[(i + 1) % 5],
+      platform: "YouTube",
+      made: "1 integrated video (90 sec)",
+      year: "2025",
+      result: "8,400 product link clicks",
+      results: [
+        { label: "Video views", value: "96K" },
+        { label: "Link clicks", value: "8,400" },
+      ],
+    },
   ],
   testimonials: [
     {
@@ -256,6 +451,12 @@ export const posters: Poster[] = brands.map((name, i) => ({
 }));
 export const campaigns: Campaign[] = Array.from({ length: 40 }, (_, i) => {
   const niche = niches[i % 12];
+  const platform =
+    niche === "Finance" || niche === "Education"
+      ? "LinkedIn"
+      : i % 4 === 1
+        ? "YouTube"
+        : "Instagram";
   const title = [
     "Your style. Our festive collection.",
     "Make everyday skincare a little glowier.",
@@ -278,7 +479,7 @@ export const campaigns: Campaign[] = Array.from({ length: 40 }, (_, i) => {
     brand: brands[i % 14],
     image: photo(covers[i % 6], 900),
     niche,
-    platform: i % 4 === 1 ? "YouTube" : "Instagram",
+    platform,
     type: i % 7 === 3 ? "Barter" : i % 9 === 6 ? "Affiliate" : "Paid",
     min: 5000 + (i % 8) * 2500,
     max: 15000 + (i % 8) * 5000,
@@ -286,10 +487,21 @@ export const campaigns: Campaign[] = Array.from({ length: 40 }, (_, i) => {
     language: languages[i % 11],
     followers: i % 3 === 0 ? 5000 : 10000,
     brief: `We're looking for ${niche.toLowerCase()} creators with a distinctive voice to tell an authentic story for ${brands[i % 14]}. Show how our products fit into your everyday life. Keep it honest, original, and true to your audience. Creative freedom is encouraged; scripted endorsements aren't our style.`,
-    deliverables: [
-      { type: "Instagram Reel (30-60 sec)", quantity: 1 },
-      { type: "Instagram Stories", quantity: 3 },
-    ],
+    deliverables:
+      platform === "LinkedIn"
+        ? [
+            { type: "LinkedIn post", quantity: 1 },
+            { type: "LinkedIn carousel", quantity: 1 },
+          ]
+        : platform === "YouTube"
+          ? [
+              { type: "YouTube integrated video (60-90 sec)", quantity: 1 },
+              { type: "YouTube Short", quantity: 1 },
+            ]
+          : [
+              { type: "Instagram Reel (30-60 sec)", quantity: 1 },
+              { type: "Instagram Stories", quantity: 3 },
+            ],
     needed: 8 + (i % 9),
     applicants: 17 + i * 3,
     deadline: "2026-11-20",
@@ -394,6 +606,7 @@ export const notifications: Notice[] = [
     body: "Glow Theory shortlisted your application.",
     href: "/c/applications",
     read: false,
+    audience: "Creator",
   },
   {
     id: "n2",
@@ -401,6 +614,7 @@ export const notifications: Notice[] = [
     body: "BoltFit hired you. Open your workspace to get started.",
     href: "/c/work/ca-6",
     read: false,
+    audience: "Creator",
   },
   {
     id: "n3",
@@ -408,5 +622,6 @@ export const notifications: Notice[] = [
     body: "Your creative ideas are getting noticed.",
     href: "/messages",
     read: false,
+    audience: "Creator",
   },
 ];

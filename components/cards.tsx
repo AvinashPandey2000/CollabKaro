@@ -8,14 +8,100 @@ import {
   BadgeCheck,
   Camera as Instagram,
   Video as Youtube,
+  BriefcaseBusiness as Linkedin,
   Clock,
   Users,
   Star,
+  Check,
+  X,
 } from "lucide-react";
 import type { Campaign, Creator, Poster } from "@/types";
 import { posters } from "@/lib/api";
-import { formatINR, formatCount, timeAgo } from "@/lib/format";
+import { formatCount, timeAgo, campaignValue, cityLabel } from "@/lib/format";
 import { useStore } from "@/lib/store";
+// Lucide has no brand icons; these stand-ins match the rest of the app.
+export function PlatformIcon({
+  platform,
+  size,
+}: {
+  platform: string;
+  size: number;
+}) {
+  if (platform === "YouTube") return <Youtube size={size} />;
+  if (platform === "LinkedIn") return <Linkedin size={size} />;
+  return <Instagram size={size} />;
+}
+// A brief's do's and don'ts, shown to creators wherever the brief appears.
+export function DosDonts({
+  dos = [],
+  donts = [],
+}: {
+  dos?: string[];
+  donts?: string[];
+}) {
+  if (!dos.length && !donts.length) return null;
+  return (
+    <div className="dos-donts">
+      {dos.length > 0 && (
+        <div className="do">
+          <h3>Do’s</h3>
+          <ul>
+            {dos.map((d) => (
+              <li key={d}>
+                <Check size={15} aria-hidden />
+                {d}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {donts.length > 0 && (
+        <div className="dont">
+          <h3>Don’ts</h3>
+          <ul>
+            {donts.map((d) => (
+              <li key={d}>
+                <X size={15} aria-hidden />
+                {d}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+export const campaignPlatforms = (c: Campaign) =>
+  c.platforms?.length ? c.platforms : [c.platform];
+// The brand a campaign shows: the name and logo the poster entered, with the
+// verified tick only when that name matches the verified poster account.
+export function campaignBrand(c: Campaign) {
+  const p = posters.find((p) => p.id === c.posterId) || posters[0];
+  const name = c.brand?.trim() || p.name;
+  return { p, name, verified: p.verified && name === p.name };
+}
+export function BrandMark({
+  campaign: c,
+  className = "",
+}: {
+  campaign: Campaign;
+  className?: string;
+}) {
+  const { p, name } = campaignBrand(c);
+  return c.brandLogo ? (
+    <Image
+      className={`monogram logo ${className}`}
+      src={c.brandLogo}
+      width={35}
+      height={35}
+      alt={`${name} logo`}
+    />
+  ) : (
+    <span className={`monogram ${className}`} style={{ background: p.color }}>
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
 export function CampaignCard({
   campaign: c,
   compact = false,
@@ -23,7 +109,7 @@ export function CampaignCard({
   campaign: Campaign;
   compact?: boolean;
 }) {
-  const p = posters.find((p) => p.id === c.posterId) || posters[0];
+  const { p, name, verified } = campaignBrand(c);
   const { saved, toggleSave } = useStore();
   return (
     <article className={`campaign-card ${compact ? "compact" : ""}`}>
@@ -60,11 +146,9 @@ export function CampaignCard({
       </div>
       <div className="card-body">
         <Link className="poster-label" href={`/agency/${p.slug}`}>
-          <span className="monogram" style={{ background: p.color }}>
-            {p.name.slice(0, 1)}
-          </span>
-          {p.name}
-          {p.verified && <BadgeCheck size={15} className="brand-text" />}
+          <BrandMark campaign={c} />
+          {name}
+          {verified && <BadgeCheck size={15} className="brand-text" />}
           <span className={`badge ${c.type === "Barter" ? "coral" : "soft"}`}>
             {c.type}
           </span>
@@ -73,17 +157,14 @@ export function CampaignCard({
           <h3>{c.title}</h3>
         </Link>
         <div className="card-meta">
-          <span>
-            {c.platform === "Instagram" ? (
-              <Instagram size={14} />
-            ) : (
-              <Youtube size={14} />
-            )}{" "}
-            {c.platform}
-          </span>
+          {campaignPlatforms(c).map((p) => (
+            <span key={p}>
+              <PlatformIcon platform={p} size={14} /> {p}
+            </span>
+          ))}
           <span>
             <MapPin size={14} />
-            {c.city}
+            {cityLabel(c.city)}
           </span>
         </div>
         <div className="chips">
@@ -93,14 +174,8 @@ export function CampaignCard({
         </div>
         <div className="card-bottom">
           <div>
-            <strong>
-              {c.type === "Barter"
-                ? `Worth ${formatINR(c.max)}`
-                : `${formatINR(c.min)} - ${formatINR(c.max)}`}
-            </strong>
-            <small>
-              {c.type === "Barter" ? "Product value" : "per creator"}
-            </small>
+            <strong>{campaignValue(c).amount}</strong>
+            <small>{campaignValue(c).label}</small>
           </div>
           <Link
             className="circle-link"

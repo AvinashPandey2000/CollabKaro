@@ -1,6 +1,6 @@
 "use client";
 import { mergeCampaigns } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -28,15 +28,28 @@ import {
   Star,
   Search,
   ExternalLink,
+  MoreHorizontal,
+  ArrowRight,
+  User,
+  Wallet,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { campaigns, creators, posters } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import { formatINR, formatCount } from "@/lib/format";
-import { CampaignCard, CreatorCard } from "./cards";
+import { formatINR, formatCount, campaignValue } from "@/lib/format";
+import { CampaignCard, CreatorCard, DosDonts } from "./cards";
 import { Empty } from "./marketplace";
 import { SectionHeader } from "./home";
 import { Dialog } from "./ui/dialog";
+import {
+  BudgetPanel,
+  ContractBadge,
+  CreatorDeal,
+  DealDialog,
+  DealMilestones,
+} from "./deals";
+import { dealPaid, dealTotal } from "@/lib/budget";
 import type { Application, Status } from "@/types";
 const EarningsChart = dynamic(
   () => import("./charts").then((m) => m.EarningsChart),
@@ -49,6 +62,11 @@ export function Dashboard({ brand = false }: { brand?: boolean }) {
   );
   const all = mergeCampaigns(s.campaigns);
   const own = all.filter((c) => c.posterId === "po-1");
+  const activity = (
+    brand
+      ? s.applications.filter((a) => own.some((c) => c.id === a.campaignId))
+      : mine
+  ).slice(0, 3);
   return (
     <>
       <div className="workspace-heading">
@@ -187,7 +205,7 @@ export function Dashboard({ brand = false }: { brand?: boolean }) {
             href={brand ? "/a/campaigns" : "/c/applications"}
             link="View all"
           />
-          {s.applications.slice(0, 3).map((a) => {
+          {activity.map((a) => {
             const c = all.find((c) => c.id === a.campaignId);
             return (
               <div className="activity-row" key={a.id}>
@@ -195,7 +213,11 @@ export function Dashboard({ brand = false }: { brand?: boolean }) {
                   <Briefcase size={18} />
                 </span>
                 <div>
-                  <strong>{c?.brand}</strong>
+                  <strong>
+                    {brand
+                      ? creators.find((cr) => cr.id === a.creatorId)?.name
+                      : c?.brand}
+                  </strong>
                   <small>{c?.title}</small>
                 </div>
                 <span className={`badge status-${a.status.toLowerCase()}`}>
@@ -204,6 +226,13 @@ export function Dashboard({ brand = false }: { brand?: boolean }) {
               </div>
             );
           })}
+          {!activity.length && (
+            <p>
+              {brand
+                ? "Applications to your campaigns will show up here."
+                : "Your application updates will show up here."}
+            </p>
+          )}
         </div>
         <div className="panel">
           <SectionHeader
@@ -411,7 +440,7 @@ export function MyCampaigns() {
                   <h3>{c.title}</h3>
                 </Link>
                 <span className="muted">
-                  {c.niche} / {formatINR(c.min)} - {formatINR(c.max)}
+                  {c.niche} / {campaignValue(c).amount}
                 </span>
               </div>
               <span className="badge soft">{c.status}</span>
@@ -451,6 +480,15 @@ export function MyCampaigns() {
   );
 }
 const columns: Status[] = ["Applied", "Shortlisted", "Hired", "Rejected"];
+// One name per column everywhere (board, card menu, bulk action, toasts).
+export const columnLabel: Record<string, string> = {
+  Applied: "New",
+  Viewed: "New",
+  Shortlisted: "Shortlisted",
+  Hired: "Hired",
+  Rejected: "Not selected",
+};
+const columnOf = (st: Status) => (st === "Viewed" ? "Applied" : st);
 function Applicant({
   a,
   onOpen,
@@ -458,13 +496,13 @@ function Applicant({
   selected,
 }: {
   a: Application;
-  onOpen: () => void;
+  onOpen: (rect: DOMRect) => void;
   onSelect: () => void;
   selected: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: a.id,
-  });
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: a.id });
+  const deal = useStore((s) => s.deals.find((d) => d.applicationId === a.id));
   const c = creators.find((c) => c.id === a.creatorId)!;
   return (
     <div
@@ -474,7 +512,9 @@ function Applicant({
           ? `translate(${transform.x}px, ${transform.y}px)`
           : undefined,
       }}
-      className="applicant-card"
+      className={`applicant-card ${isDragging ? "dragging" : ""}`}
+      // Pointer drag works from anywhere on the card, like Trello.
+      onPointerDown={listeners?.onPointerDown as React.PointerEventHandler}
     >
       <div className="row between">
         <input
@@ -482,32 +522,55 @@ function Applicant({
           type="checkbox"
           checked={selected}
           onChange={onSelect}
+          onPointerDown={(e) => e.stopPropagation()}
         />
         <button
           className="drag-handle icon-button"
-          aria-label={`Move ${c.name}`}
-          {...listeners}
+          aria-label={`Move ${c.name} with the keyboard`}
           {...attributes}
+          onKeyDown={listeners?.onKeyDown as React.KeyboardEventHandler}
         >
           <GripVertical size={18} />
         </button>
       </div>
-      <button className="applicant-person" onClick={onOpen}>
-        <Image src={c.avatar} width={42} height={42} alt={c.name} />
+      <button
+        className="applicant-person"
+        aria-haspopup="menu"
+        aria-label={`Actions for ${c.name}`}
+        onClick={(e) =>
+          onOpen(
+            (
+              e.currentTarget.closest(".applicant-card") as HTMLElement
+            ).getBoundingClientRect(),
+          )
+        }
+      >
+        <Image src={c.avatar} width={42} height={42} alt="" />
         <span>
           <strong>{c.name}</strong>
           <small>
             {c.niche} • {c.city}
           </small>
         </span>
+        <MoreHorizontal size={16} aria-hidden />
       </button>
       <div className="row applicant-metrics">
         <span>{formatCount(c.followers)} followers</span>
         <span>{c.engagement}% ER</span>
       </div>
       <p>{a.pitch}</p>
-      <strong>{formatINR(a.quote)}</strong>
-      <small>Quoted price</small>
+      {deal ? (
+        <>
+          <strong>{formatINR(dealTotal(deal))}</strong>
+          <small>Agreed · {formatINR(dealPaid(deal))} paid</small>
+          <ContractBadge deal={deal} />
+        </>
+      ) : (
+        <>
+          <strong>{formatINR(a.quote)}</strong>
+          <small>Quoted price</small>
+        </>
+      )}
     </div>
   );
 }
@@ -527,11 +590,94 @@ function Column({
       className={`kanban-column ${isOver ? "drag-over" : ""}`}
     >
       <h3>
-        {status === "Applied" ? "New" : status}
+        {columnLabel[status]}
         <span>{count}</span>
       </h3>
       {children}
     </section>
+  );
+}
+// Quick actions that open next to a clicked applicant card.
+function CardMenu({
+  a,
+  rect,
+  onClose,
+  onProfile,
+  onMove,
+  onDeal,
+}: {
+  a: Application;
+  rect: DOMRect;
+  onClose: () => void;
+  onProfile: () => void;
+  onMove: (st: Status) => void;
+  onDeal: () => void;
+}) {
+  const s = useStore();
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement>(null);
+  const c = creators.find((x) => x.id === a.creatorId)!;
+  useEffect(() => {
+    ref.current?.querySelector("button")?.focus();
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", key);
+    window.addEventListener("scroll", onClose, true);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", key);
+      window.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
+  const width = 220;
+  const narrow = innerWidth < 640;
+  const style = narrow
+    ? {
+        left: Math.max(8, Math.min(rect.left, innerWidth - width - 8)),
+        top: rect.bottom + 6,
+      }
+    : {
+        left:
+          rect.right + 8 + width < innerWidth
+            ? rect.right + 8
+            : Math.max(8, rect.left - width - 8),
+        top: Math.min(rect.top, innerHeight - 320),
+      };
+  const current = columnOf(a.status);
+  return (
+    <div
+      ref={ref}
+      className="card-menu"
+      role="menu"
+      aria-label={`Actions for ${c.name}`}
+      style={{ ...style, width }}
+    >
+      <button role="menuitem" onClick={onProfile}>
+        <User size={15} /> View profile & pitch
+      </button>
+      <button
+        role="menuitem"
+        onClick={() => router.push(`/messages?thread=${s.startChat(c.id)}`)}
+      >
+        <MessageCircle size={15} /> Message
+      </button>
+      {a.status === "Hired" && (
+        <button role="menuitem" onClick={onDeal}>
+          <Wallet size={15} /> Deal, contract & payments
+        </button>
+      )}
+      <small>Move to</small>
+      {columns
+        .filter((st) => st !== current)
+        .map((st) => (
+          <button role="menuitem" key={st} onClick={() => onMove(st)}>
+            <ArrowRight size={15} /> {columnLabel[st]}
+          </button>
+        ))}
+    </div>
   );
 }
 export function Pipeline({ id }: { id: string }) {
@@ -541,6 +687,8 @@ export function Pipeline({ id }: { id: string }) {
   useEffect(() => setReady(true), []);
   const [selected, setSelected] = useState<string[]>([]);
   const [drawer, setDrawer] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [dealFor, setDealFor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -559,11 +707,23 @@ export function Pipeline({ id }: { id: string }) {
   );
   const a = s.applications.find((a) => a.id === drawer);
   const person = a ? creators.find((c) => c.id === a.creatorId) : null;
+  const menuApp = s.applications.find((x) => x.id === menu?.id);
+  const dealApp = s.applications.find((x) => x.id === dealFor);
+  const drawerDeal = s.deals.find((d) => d.applicationId === drawer);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  // Moving to Hired opens the deal setup, unless the deal already exists.
+  const move = (appId: string, st: Status) => {
+    s.setStatus(appId, st);
+    toast.success(`Moved to ${columnLabel[st]}`);
+    if (st === "Hired" && !s.deals.some((d) => d.applicationId === appId))
+      setDealFor(appId);
+  };
   const drop = (e: DragEndEvent) => {
-    if (e.over && columns.includes(e.over.id as Status)) {
-      s.setStatus(String(e.active.id), e.over.id as Status);
-      toast.success(`Moved to ${e.over.id === "Applied" ? "New" : e.over.id}`);
-    }
+    const to = e.over?.id as Status | undefined;
+    const app = s.applications.find((x) => x.id === e.active.id);
+    if (!to || !app || !columns.includes(to) || columnOf(app.status) === to)
+      return;
+    move(app.id, to);
   };
   return (
     <>
@@ -578,6 +738,9 @@ export function Pipeline({ id }: { id: string }) {
         </div>
         <span className="badge soft">{applicants.length} applicants</span>
       </div>
+      {c && ready && (
+        <BudgetPanel campaign={c} onEditDeal={(appId) => setDealFor(appId)} />
+      )}
       <div className="pipeline-toolbar">
         <div className="browse-search">
           <Search size={18} />
@@ -588,7 +751,9 @@ export function Pipeline({ id }: { id: string }) {
             placeholder="Find an applicant…"
           />
         </div>
-        <span className="muted">Drag cards or use the status menu.</span>
+        <span className="muted">
+          Drag a card to another column, or click it for options.
+        </span>
         {selected.length > 0 && (
           <select
             aria-label="Bulk applicant action"
@@ -604,59 +769,51 @@ export function Pipeline({ id }: { id: string }) {
           >
             <option value="">Move {selected.length} selected</option>
             {columns.map((c) => (
-              <option key={c}>{c}</option>
+              <option key={c} value={c}>
+                {columnLabel[c]}
+              </option>
             ))}
           </select>
         )}
       </div>
-      <DndContext sensors={sensors} onDragEnd={drop}>
+      {ready && !applicants.length && !search && (
+        <div className="info-box">
+          <Info size={18} />
+          <span>
+            No applications yet. Creators apply from your campaign page, or you
+            can invite people from{" "}
+            <Link href="/a/discover">Discover creators</Link>.
+          </span>
+        </div>
+      )}
+      <DndContext id="applicant-board" sensors={sensors} onDragEnd={drop}>
         <div className="kanban">
           {columns.map((status) => {
-            const list = applicants.filter((a) =>
-              status === "Applied"
-                ? ["Applied", "Viewed"].includes(a.status)
-                : a.status === status,
+            const list = applicants.filter(
+              (a) => columnOf(a.status) === status,
             );
             return (
               <Column key={status} status={status} count={list.length}>
                 {list.map((a) => (
-                  <div key={a.id}>
-                    <Applicant
-                      a={a}
-                      selected={selected.includes(a.id)}
-                      onSelect={() =>
-                        setSelected((v) =>
-                          v.includes(a.id)
-                            ? v.filter((x) => x !== a.id)
-                            : [...v, a.id],
-                        )
-                      }
-                      onOpen={() => setDrawer(a.id)}
-                    />
-                    <select
-                      className="applicant-status"
-                      disabled={!ready}
-                      aria-label={`Application status for ${creators.find((c) => c.id === a.creatorId)?.name}`}
-                      value={a.status}
-                      onChange={(e) =>
-                        s.setStatus(a.id, e.target.value as Status)
-                      }
-                    >
-                      {[
-                        "Applied",
-                        "Viewed",
-                        "Shortlisted",
-                        "Hired",
-                        "Rejected",
-                      ].map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <Applicant
+                    key={a.id}
+                    a={a}
+                    selected={selected.includes(a.id)}
+                    onSelect={() =>
+                      setSelected((v) =>
+                        v.includes(a.id)
+                          ? v.filter((x) => x !== a.id)
+                          : [...v, a.id],
+                      )
+                    }
+                    onOpen={(rect) => setMenu({ id: a.id, rect })}
+                  />
                 ))}
                 {!list.length && (
                   <div className="kanban-empty">
-                    Your next creative match could land here.
+                    {status === "Hired"
+                      ? "Drop a creator here to set up their deal."
+                      : "Drag creators here."}
                   </div>
                 )}
               </Column>
@@ -664,6 +821,34 @@ export function Pipeline({ id }: { id: string }) {
           })}
         </div>
       </DndContext>
+      {menu && menuApp && (
+        <CardMenu
+          a={menuApp}
+          rect={menu.rect}
+          onClose={closeMenu}
+          onProfile={() => {
+            setDrawer(menuApp.id);
+            setMenu(null);
+          }}
+          onDeal={() => {
+            setDealFor(menuApp.id);
+            setMenu(null);
+          }}
+          onMove={(st) => {
+            move(menuApp.id, st);
+            setMenu(null);
+          }}
+        />
+      )}
+      {dealApp && c && (
+        <DealDialog
+          key={dealApp.id}
+          application={dealApp}
+          campaign={c}
+          open
+          onOpenChange={(o) => !o && setDealFor(null)}
+        />
+      )}
       <Dialog
         open={drawer !== null}
         onOpenChange={(o) => !o && setDrawer(null)}
@@ -692,6 +877,12 @@ export function Pipeline({ id }: { id: string }) {
             <h3>Their pitch</h3>
             <p>{a.pitch}</p>
             <h3>{formatINR(a.quote)} quoted</h3>
+            {drawerDeal && (
+              <>
+                <h3>Payments</h3>
+                <DealMilestones deal={drawerDeal} />
+              </>
+            )}
             <div className="row">
               <Link
                 className="button secondary"
@@ -806,6 +997,7 @@ export function Work({ id }: { id?: string }) {
         <div className="panel">
           <h2>Your creative brief</h2>
           <p>{campaign.brief}</p>
+          <DosDonts dos={campaign.dos} donts={campaign.donts} />
           <h3>The deliverables</h3>
           {campaign.deliverables.map((d) => (
             <label className="check-field deliverable-check" key={d.type}>
@@ -824,7 +1016,8 @@ export function Work({ id }: { id?: string }) {
             </label>
           ))}
           <div className="info-box">
-            Due 7 days after product delivery. {campaign.usage}
+            Platform default: due 7 days after product delivery or brief
+            confirmation, unless agreed otherwise in chat. {campaign.usage}
           </div>
         </div>
         <div className="panel">
@@ -843,6 +1036,7 @@ export function Work({ id }: { id?: string }) {
                   "Content submitted",
                   "Your creative work is ready for review.",
                   "/c/work/" + id,
+                  "Creator",
                 );
               } catch {
                 toast.error("Enter a valid https:// content URL.");
@@ -876,6 +1070,7 @@ export function Work({ id }: { id?: string }) {
           </Link>
         </div>
       </div>
+      <CreatorDeal campaignId={campaign.id} />
       {submitted && (
         <div className="panel workspace-section">
           <h2>How was your collab?</h2>
