@@ -34,11 +34,13 @@ Shared: `/messages(?thread=id)`, `/notifications`, `/settings`, `/admin` (Admin 
 - Media kit: `Creator.platforms[]` carry per-platform stats (engagement, avgViews, growth, audience, ages, gender, india); `ContentItem` has platform/format/duration/url; `PastCollab` has results/quote/`viaCollabKaro`. Helpers in `lib/creator-insights.ts` (insights, embedUrl for YouTube/Instagram, completedCollabs from signed + fully paid deals). The demo creator's own work and collabs live in `store.portfolio` / `store.pastCollabs` (editors in `components/profile-editors.tsx`).
 - `lib/format.ts`: `formatINR` (en-IN, no decimals), `formatCount` (K / L / Cr), `timeAgo`, `maskContact(text, hired)` (masks emails and Indian mobiles until hired).
 
-## Demo identity conventions (hard-coded, be aware)
+## Identity and backend mode (updated 2026-10-24)
 
-- The logged-in creator is always **`cr-1` (Aanya Sharma)**; the logged-in brand is always **`po-1` (Kurta Kraft)**. Eligibility checks use `creators[0]`.
-- Role is selected through the "Viewing as" demo bar in `shell.tsx`. Gating is client-side only. **There is no real authorization.** Any production work must enforce ownership and roles on the server.
-- `startChat` defaults to `po-1`/`ca-1`.
+- Two modes, switched by `NEXT_PUBLIC_API_URL` (`lib/backend.ts` → `backendEnabled`). **Demo mode** (unset): seeds + localStorage, the "Viewing as" bar, simulated chat replies; the Playwright suite runs here. **Backend mode**: the NestJS API in `../socialMediaNaukriBackend` (Postgres + Redis + Socket.IO), phone-OTP auth, server-enforced ownership/roles, nothing persisted locally.
+- The current user's ids are `store.me.creatorId` / `store.me.posterId` (demo defaults `cr-1` / `po-1`). Use them and `creatorFor(store.me.creatorId)` from `lib/api.ts` — **never hard-code `cr-1`, `po-1` or `creators[0]` for "me"**.
+- Every store mutation is mirrored to the API via `push()` in `lib/store.ts` (queued, in order; failure → toast + resync). A new mutation needs a matching `remote.*` call in `lib/backend.ts` and an endpoint in the backend. `notify()` is a no-op in backend mode (the server creates notifications).
+- In backend mode `PageRouter` shows the skeleton until the live catalogue loads (keeps hydration consistent); `loadCatalog()` refills the shared arrays in place and bumps `store.catalogVersion`.
+- `setRole` is ignored in backend mode; the role comes from the account.
 
 ## Patterns to follow
 
@@ -50,7 +52,9 @@ Shared: `/messages(?thread=id)`, `/notifications`, `/settings`, `/admin` (Admin 
 
 ## What is mocked / not built (do not imply otherwise)
 
-Authentication and OTP, social account connection and verified metrics, payments, escrow, invoices (the sample invoice is a text file), file uploads (campaign cover/logo are resized in-browser to data URLs via `api.uploadImage` and kept in localStorage; other uploads keep only file names), email/SMS, multi-user chat (replies are simulated), moderation and reports (session-only), team invitations, admin actions (session-only), analytics (all charts are sample data), and video playback. Campaign timelines ("due 7 days after product delivery", "review within 3 business days") are **hard-coded copy, not campaign fields**.
+In backend mode, these are real: phone-OTP login (SMS delivery still dev-only), multi-user chat, persistence, uploads (local disk), server-side authorization and notifications. Everything below is still mocked in both modes unless noted.
+
+Social account connection and verified metrics, payments, escrow, invoices (the sample invoice is a text file), file uploads (campaign cover/logo are resized in-browser to data URLs via `api.uploadImage` and kept in localStorage; other uploads keep only file names), email/SMS, multi-user chat (replies are simulated), moderation and reports (session-only), team invitations, admin actions (session-only), analytics (all charts are sample data), and video playback. Campaign timelines ("due 7 days after product delivery", "review within 3 business days") are **hard-coded copy, not campaign fields**.
 
 ## Tooling
 

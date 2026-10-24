@@ -1,6 +1,8 @@
 "use client";
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
+import { backendEnabled } from "@/lib/backend";
+import { useStore } from "@/lib/store";
 import { Home } from "./home";
 const Campaigns = dynamic(() =>
   import("./marketplace").then((m) => m.Campaigns),
@@ -30,6 +32,9 @@ const Shortlists = dynamic(() =>
 const Work = dynamic(() => import("./workspace").then((m) => m.Work));
 const Payments = dynamic(() => import("./deals").then((m) => m.Payments));
 const Auth = dynamic(() => import("./forms").then((m) => m.Auth));
+const BackendAuth = dynamic(() =>
+  import("./backend-auth").then((m) => m.BackendAuth),
+);
 const Onboarding = dynamic(() => import("./forms").then((m) => m.Onboarding));
 const CreateCampaign = dynamic(() =>
   import("./forms").then((m) => m.CreateCampaign),
@@ -52,6 +57,10 @@ const StaticPage = dynamic(() =>
 );
 const Blog = dynamic(() => import("./marketing").then((m) => m.Blog));
 export function PageRouter({ path }: { path: string[] }) {
+  // Backend mode: wait for the live catalogue (server and first client render
+  // both show the skeleton, so hydration matches), and re-render on reloads.
+  const catalogVersion = useStore((s) => s.catalogVersion);
+  const waiting = backendEnabled && catalogVersion === 0;
   const [root, sub, id, last] = path;
   const route = path.join("/");
   let page: React.ReactNode;
@@ -71,7 +80,7 @@ export function PageRouter({ path }: { path: string[] }) {
   else if (
     ["login", "signup", "otp", "role-select", "forgot-password"].includes(root)
   )
-    page = <Auth kind={root} />;
+    page = backendEnabled ? <BackendAuth kind={root} /> : <Auth kind={root} />;
   else if (root === "onboarding" || route === "a/onboarding")
     page = <Onboarding brand={root === "a"} />;
   else if (root === "messages") page = <Messages />;
@@ -103,13 +112,19 @@ export function PageRouter({ path }: { path: string[] }) {
         </div>
       }
     >
-      {page || (
-        <Empty
-          title="This page took a creative detour."
-          text="Let’s get you back to your next opportunity."
-          href="/"
-          label="Back to home"
-        />
+      {waiting ? (
+        <div className="container page-wrap">
+          <div className="skeleton-card" />
+        </div>
+      ) : (
+        page || (
+          <Empty
+            title="This page took a creative detour."
+            text="Let’s get you back to your next opportunity."
+            href="/"
+            label="Back to home"
+          />
+        )
       )}
     </Suspense>
   );

@@ -35,7 +35,7 @@ import {
   Info,
 } from "lucide-react";
 import { toast } from "sonner";
-import { campaigns, creators, posters } from "@/lib/api";
+import { campaigns, creatorFor, creators, posters } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { formatINR, formatCount, campaignValue } from "@/lib/format";
 import { CampaignCard, CreatorCard, DosDonts } from "./cards";
@@ -58,10 +58,10 @@ const EarningsChart = dynamic(
 export function Dashboard({ brand = false }: { brand?: boolean }) {
   const s = useStore();
   const mine = s.applications.filter(
-    (a) => a.creatorId === "cr-1" && a.status !== "Withdrawn",
+    (a) => a.creatorId === s.me.creatorId && a.status !== "Withdrawn",
   );
   const all = mergeCampaigns(s.campaigns);
-  const own = all.filter((c) => c.posterId === "po-1");
+  const own = all.filter((c) => c.posterId === s.me.posterId);
   const activity = (
     brand
       ? s.applications.filter((a) => own.some((c) => c.id === a.campaignId))
@@ -160,7 +160,9 @@ export function Dashboard({ brand = false }: { brand?: boolean }) {
         </div>
         <div className="panel profile-strength">
           <div className="strength-ring">
-            <strong>{brand ? "3/5" : `${creators[0].strength}%`}</strong>
+            <strong>
+              {brand ? "3/5" : `${creatorFor(s.me.creatorId).strength}%`}
+            </strong>
             <small>{brand ? "Campaigns used" : "Profile strength"}</small>
           </div>
           <h3>
@@ -271,7 +273,7 @@ export function Applications() {
   const [tab, setTab] = useState("All");
   const [withdraw, setWithdraw] = useState<string | null>(null);
   const all = mergeCampaigns(s.campaigns);
-  const own = s.applications.filter((a) => a.creatorId === "cr-1");
+  const own = s.applications.filter((a) => a.creatorId === s.me.creatorId);
   const list = own.filter((a) => tab === "All" || a.status === tab);
   return (
     <>
@@ -405,7 +407,9 @@ export function Applications() {
 export function MyCampaigns() {
   const s = useStore();
   const [filter, setFilter] = useState("All");
-  const own = mergeCampaigns(s.campaigns).filter((c) => c.posterId === "po-1");
+  const own = mergeCampaigns(s.campaigns).filter(
+    (c) => c.posterId === s.me.posterId,
+  );
   return (
     <>
       <div className="workspace-heading">
@@ -942,7 +946,7 @@ export function Work({ id }: { id?: string }) {
   const [rating, setRating] = useState(5);
   const all = mergeCampaigns(s.campaigns);
   const active = s.applications.filter(
-    (a) => a.creatorId === "cr-1" && a.status === "Hired",
+    (a) => a.creatorId === s.me.creatorId && a.status === "Hired",
   );
   const campaign = all.find((c) => c.id === id);
   if (!id)

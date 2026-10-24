@@ -22,6 +22,24 @@ npm start
 
 Fonts are bundled locally; no Google Fonts request is needed at build time. Images use Next.js image optimization with remote Unsplash samples. Internet access is needed on the first request for uncached images.
 
+## Backend mode (real API)
+
+The API lives in `../socialMediaNaukriBackend` (NestJS + PostgreSQL + Redis); see its README for setup. Point the frontend at it:
+
+```bash
+cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:4000
+npm run dev
+```
+
+With the variable set:
+
+- Login is phone + OTP (`/login`, `/signup`). Locally the code is printed in the API log, and `123456` also works. Demo numbers: `9000000001` (creator Aanya Sharma), `9000000002` (brand Kurta Kraft), `9000000003` (admin).
+- The **Viewing as** switcher is hidden. The role comes from the account.
+- Campaigns, creators and brands load from the API. Applications, campaigns, deals, chat, notifications, saved/shortlist, profile and portfolio are saved to the database, and nothing is kept in localStorage.
+- Chat is real between two accounts, with live updates over Socket.IO (no simulated replies). Images and voice notes upload to the API.
+
+Unset `NEXT_PUBLIC_API_URL` to get the self-contained demo below. The Playwright tests run against the demo, so start the dev server without the variable for `npm test` (for example `NEXT_PUBLIC_API_URL= npm run dev`).
+
 ## Client review paths
 
 - `/`: two-sided landing, search, opportunities, creator community, trust, FAQs.
@@ -51,8 +69,10 @@ Fonts are bundled locally; no Google Fonts request is needed at build time. Imag
 
 - `types/index.ts`: strict domain models.
 - `data/index.ts`: 36 fictional creators, 14 posters, 40 campaigns, seeded applications/messages/notifications.
-- `lib/api.ts`: data-access boundary and async API adapter. UI data imports pass through this module. Replace adapter functions with authenticated fetches and move state-changing methods to API mutations when connecting a backend.
-- `lib/store.ts`: local mock session and mutations. Replace with server state and enforce ownership/role permissions server-side in production.
+- `lib/api.ts`: data-access boundary. UI data imports pass through this module. In backend mode `loadCatalog()` refills the shared `campaigns`/`creators`/`posters` arrays from the API, and `uploadImage` uploads to it.
+- `lib/backend.ts`: API client (access token in memory, refresh cookie, auto-refresh on 401), typed endpoints, and the Socket.IO connection.
+- `lib/store.ts`: session and mutations. In backend mode each mutation updates the UI optimistically and then calls the API in order; failures show a toast and resync. `store.me` holds the creator/brand ids the user acts as (demo: `cr-1`/`po-1`).
+- `components/backend-sync.tsx` / `components/backend-auth.tsx`: session restore, catalogue + state loading and realtime; phone-OTP auth screens.
 - `lib/format.ts`: Indian number/currency formatting, relative dates, contact masking.
 - `components/`: reusable marketing, cards, workspaces, forms, chart, chat, and Radix dialog components.
 - `app/[[...path]]/page.tsx`: route resolution, per-page metadata and static generation for sample detail routes. Newly created demo campaigns resolve dynamically.

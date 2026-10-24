@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CallInvite } from "@/types";
+import { ApiError, backendEnabled, remote } from "@/lib/backend";
 import { Dialog } from "./ui/dialog";
 
 const MAX_SECONDS = 120;
@@ -25,6 +26,11 @@ const blobToDataUrl = (blob: Blob) =>
     r.onerror = reject;
     r.readAsDataURL(blob);
   });
+/** Demo: keep the note as a data URL. Backend: upload it and use the hosted URL. */
+const storeVoice = async (blob: Blob) =>
+  backendEnabled
+    ? (await remote.upload(blob, "voice-note.webm", "voice")).url
+    : blobToDataUrl(blob);
 
 /* --------------------------------------------------------------- Voice notes */
 
@@ -79,7 +85,15 @@ export function VoiceRecorder({
         const blob = new Blob(chunks.current, {
           type: rec.mimeType || "audio/webm",
         });
-        onSend({ url: await blobToDataUrl(blob), seconds: secs });
+        try {
+          onSend({ url: await storeVoice(blob), seconds: secs });
+        } catch (err) {
+          toast.error(
+            err instanceof ApiError
+              ? err.message
+              : "Couldn't send the voice note. Please try again.",
+          );
+        }
       };
       recorder.current = rec;
       started.current = Date.now();

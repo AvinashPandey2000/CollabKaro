@@ -792,7 +792,9 @@ export function BudgetPanel({
 
 export function Payments() {
   const s = useStore();
-  const own = mergeCampaigns(s.campaigns).filter((c) => c.posterId === "po-1");
+  const own = mergeCampaigns(s.campaigns).filter(
+    (c) => c.posterId === s.me.posterId,
+  );
   const deals = s.deals.filter((d) => own.some((c) => c.id === d.campaignId));
   const [filter, setFilter] = useState<"all" | "due" | "paid">("all");
   const [paying, setPaying] = useState<{ deal: Deal; m: Milestone } | null>(
@@ -1034,7 +1036,7 @@ const csv_bom = "﻿";
 export function CreatorDeal({ campaignId }: { campaignId: string }) {
   const s = useStore();
   const deal = s.deals.find(
-    (d) => d.campaignId === campaignId && d.creatorId === "cr-1",
+    (d) => d.campaignId === campaignId && d.creatorId === s.me.creatorId,
   );
   const [open, setOpen] = useState(false);
   if (!deal)

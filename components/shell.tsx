@@ -30,6 +30,7 @@ import { Logo } from "./logo";
 import { Dialog } from "./ui/dialog";
 import { useStore, seesNotice } from "@/lib/store";
 import { campaigns, creators, posters } from "@/lib/api";
+import { backendEnabled } from "@/lib/backend";
 import type { Role } from "@/types";
 const creatorNav = [
   ["Dashboard", "/c/dashboard", LayoutDashboard],
@@ -52,7 +53,7 @@ const brandNav = [
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, setRole, notifications: allNotices } = useStore();
+  const { role, setRole, logout, notifications: allNotices } = useStore();
   const notifications = allNotices.filter((n) => seesNotice(n, role));
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -211,27 +212,29 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         )}
       </header>
-      <div className="demo-bar">
-        <span>
-          <span className="live-dot" />
-          Interactive demo{" "}
-          <span className="demo-extra">with sample creators & campaigns</span>
-        </span>
-        <label>
-          Viewing as:{" "}
-          <select
-            aria-label="Viewing role"
-            value={mounted ? role : "Guest"}
-            onChange={(e) => setRole(e.target.value as Role)}
-          >
-            <option>Guest</option>
-            <option>Creator</option>
-            <option>Brand-Agency</option>
-            <option>Admin</option>
-          </select>
-          <ChevronDown size={12} />
-        </label>
-      </div>
+      {!backendEnabled && (
+        <div className="demo-bar">
+          <span>
+            <span className="live-dot" />
+            Interactive demo{" "}
+            <span className="demo-extra">with sample creators & campaigns</span>
+          </span>
+          <label>
+            Viewing as:{" "}
+            <select
+              aria-label="Viewing role"
+              value={mounted ? role : "Guest"}
+              onChange={(e) => setRole(e.target.value as Role)}
+            >
+              <option>Guest</option>
+              <option>Creator</option>
+              <option>Brand-Agency</option>
+              <option>Admin</option>
+            </select>
+            <ChevronDown size={12} />
+          </label>
+        </div>
+      )}
       {app ? (
         <div className="app-layout">
           <aside className="sidebar">
@@ -260,13 +263,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <p>Verified profiles. Clear briefs. Safer conversations.</p>
               <button
                 className="text-button"
-                onClick={() => {
-                  setRole("Guest");
+                onClick={async () => {
+                  await logout();
                   router.push("/");
                 }}
               >
                 <LogOut size={15} />
-                Log out of demo
+                {backendEnabled ? "Log out" : "Log out of demo"}
               </button>
             </div>
           </aside>

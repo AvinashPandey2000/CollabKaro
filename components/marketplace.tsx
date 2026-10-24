@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import {
   campaigns,
+  creatorFor,
   creators,
   posters,
   niches,
@@ -72,6 +73,7 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
   const params = useSearchParams();
   const router = useRouter();
   const store = useStore();
+  const me = creatorFor(store.me.creatorId);
   const [search, setSearch] = useState(params.get("q") || "");
   const [niche, setNiche] = useState(params.get("niche") || "");
   const [platform, setPlatform] = useState(params.get("platform") || "");
@@ -105,7 +107,7 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
         (!type || c.type === type) &&
         (!language || c.language === language) &&
         c.min <= budget &&
-        (!eligible || c.followers <= creators[0].followers) &&
+        (!eligible || c.followers <= me.followers) &&
         (!urgent || c.urgent),
     )
     .sort((a, b) =>
@@ -356,6 +358,7 @@ export function Campaigns({ savedOnly = false }: { savedOnly?: boolean }) {
 }
 export function CampaignDetail({ slug }: { slug: string }) {
   const store = useStore();
+  const me = creatorFor(store.me.creatorId);
   const router = useRouter();
   const campaign = mergeCampaigns(store.campaigns).find((c) => c.slug === slug);
   const [open, setOpen] = useState(false);
@@ -379,7 +382,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
   const applied = store.applications.some(
     (a) =>
       a.campaignId === c.id &&
-      a.creatorId === "cr-1" &&
+      a.creatorId === store.me.creatorId &&
       a.status !== "Withdrawn",
   );
   const canApply = store.role === "Creator";
@@ -387,7 +390,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
     const ok = store.apply({
       id: crypto.randomUUID(),
       campaignId: c.id,
-      creatorId: "cr-1",
+      creatorId: store.me.creatorId,
       pitch: v.pitch,
       quote: v.quote,
       status: "Applied",
@@ -478,22 +481,19 @@ export function CampaignDetail({ slug }: { slug: string }) {
               {[
                 [
                   `${formatCount(c.followers)}+ followers`,
-                  creators[0].followers >= c.followers,
+                  me.followers >= c.followers,
                 ],
                 ...(c.minEngagement
                   ? [
                       [
                         `${c.minEngagement}%+ engagement`,
-                        creators[0].engagement >= c.minEngagement,
+                        me.engagement >= c.minEngagement,
                       ],
                     ]
                   : []),
-                [`${c.niche} content`, creators[0].niche === c.niche],
-                [`${c.city} location`, servesCity(c.city, creators[0].city)],
-                [
-                  `${c.language} content`,
-                  creators[0].languages.includes(c.language),
-                ],
+                [`${c.niche} content`, me.niche === c.niche],
+                [`${c.city} location`, servesCity(c.city, me.city)],
+                [`${c.language} content`, me.languages.includes(c.language)],
               ].map(([text, qualifies]) => (
                 <div key={text as string}>
                   {store.role === "Creator" ? (
@@ -668,7 +668,7 @@ export function CampaignDetail({ slug }: { slug: string }) {
           <label className="field">
             <span>Choose work to showcase</span>
             <div className="showcase-picker">
-              {creators[0].content.slice(0, 3).map((item) => (
+              {me.content.slice(0, 3).map((item) => (
                 <button
                   type="button"
                   className={selected.includes(item.id) ? "selected" : ""}

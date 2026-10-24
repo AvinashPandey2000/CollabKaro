@@ -21,7 +21,15 @@ import {
   Video as Youtube,
   BriefcaseBusiness as Linkedin,
 } from "lucide-react";
-import { creators, niches, photo, covers, cities, languages } from "@/lib/api";
+import {
+  creatorFor,
+  creators,
+  niches,
+  photo,
+  covers,
+  cities,
+  languages,
+} from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { formatINR, formatCount, campaignValue } from "@/lib/format";
 import { SearchSelect } from "./ui/search-select";
@@ -798,7 +806,7 @@ export function CreateCampaign() {
   const preview: Campaign = {
     id: existing?.id || "preview",
     slug: existing?.slug || "preview",
-    posterId: "po-1",
+    posterId: s.me.posterId,
     title: v.title || "Your next great campaign",
     brand: v.brand || "Your brand",
     brandLogo: v.brandLogo || undefined,
@@ -842,7 +850,7 @@ export function CreateCampaign() {
       slug:
         existing?.slug ||
         `${values.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${id.slice(0, 6)}`,
-      posterId: "po-1",
+      posterId: s.me.posterId,
       language: values.language,
       followers: values.followers,
       deadline: values.deadline,
@@ -1246,7 +1254,7 @@ const profileSchema = z.object({
 type ProfileValues = z.infer<typeof profileSchema>;
 export function EditProfile() {
   const s = useStore();
-  const c = creators[0];
+  const c = creatorFor(s.me.creatorId);
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {

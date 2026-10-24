@@ -22,6 +22,7 @@ import {
 import { useStore, seesNotice } from "@/lib/store";
 import { creators, posters, campaigns } from "@/lib/api";
 import { maskContact } from "@/lib/format";
+import { backendEnabled } from "@/lib/backend";
 import { Empty } from "./marketplace";
 import { Dialog } from "./ui/dialog";
 import {
@@ -35,9 +36,9 @@ import type { CallInvite, Message } from "@/types";
 export function Messages() {
   const params = useSearchParams();
   const s = useStore();
-  const [active, setActive] = useState(
-    params.get("thread") || s.conversations[0]?.id || "",
-  );
+  const [picked, setActive] = useState(params.get("thread") || "");
+  // Threads may arrive after first render (backend mode), so derive the default.
+  const active = picked || s.conversations[0]?.id || "";
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [typing, setTyping] = useState(false);
@@ -89,6 +90,8 @@ export function Messages() {
       sender: brand ? "brand" : "creator",
       time: now(),
     });
+    // With a backend the real partner replies; only the demo simulates one.
+    if (backendEnabled) return;
     setTyping(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -129,6 +132,8 @@ export function Messages() {
       time: now(),
       call,
     });
+    toast.success("Call invite sent.");
+    if (backendEnabled) return;
     setTyping(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -141,7 +146,6 @@ export function Messages() {
       });
       setTyping(false);
     }, 1500);
-    toast.success("Call invite sent.");
   };
   return (
     <>

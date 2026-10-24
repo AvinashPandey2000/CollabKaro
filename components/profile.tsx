@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   Play,
 } from "lucide-react";
-import { creators, campaigns } from "@/lib/api";
+import { creators } from "@/lib/api";
 import { formatCount, formatINR } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { Dialog } from "./ui/dialog";
@@ -87,7 +87,7 @@ export function CreatorProfile({ username }: { username: string }) {
   const base = creators.find((c) => c.username === username);
   const store = useStore();
   const c =
-    base && base.id === "cr-1"
+    base && base.id === store.me.creatorId
       ? {
           ...base,
           name: store.profile.name || base.name,
@@ -102,7 +102,11 @@ export function CreatorProfile({ username }: { username: string }) {
   const [platform, setPlatform] = useState(c?.platform ?? "Instagram");
   const [content, setContent] = useState<string | null>(null);
   const [invite, setInvite] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState("ca-1");
+  const ownCampaigns = mergeCampaigns(store.campaigns).filter(
+    (x) => x.posterId === store.me.posterId,
+  );
+  const [pickedCampaign, setSelectedCampaign] = useState("");
+  const selectedCampaign = pickedCampaign || ownCampaigns[0]?.id || "";
   if (!c)
     return (
       <Empty
@@ -115,7 +119,7 @@ export function CreatorProfile({ username }: { username: string }) {
   const brand = store.role === "Brand-Agency";
   const stats = insights(c, platform);
   const labels = platformLabels[platform] ?? platformLabels.Instagram;
-  const own = c.id === "cr-1";
+  const own = c.id === store.me.creatorId;
   const allWork = [...(own ? store.portfolio : []), ...c.content];
   const work = allWork.filter((x) => (x.platform ?? c.platform) === platform);
   const preview = allWork.find((x) => x.id === content);
@@ -434,7 +438,7 @@ export function CreatorProfile({ username }: { username: string }) {
                     <span>{r.type}</span>
                     <strong>
                       {formatINR(
-                        c.id === "cr-1" &&
+                        c.id === store.me.creatorId &&
                           r.type === "Reel" &&
                           store.profile.rate
                           ? Number(store.profile.rate)
@@ -569,16 +573,20 @@ export function CreatorProfile({ username }: { username: string }) {
               label="Pick your campaign"
               value={selectedCampaign}
               onChange={setSelectedCampaign}
-              options={[
-                ...store.campaigns,
-                ...campaigns.filter((c) => c.posterId === "po-1"),
-              ].map((c) => ({ value: c.id, label: c.title }))}
+              options={ownCampaigns.map((c) => ({
+                value: c.id,
+                label: c.title,
+              }))}
             />
           </label>
           <button
             className="button"
             onClick={() => {
-              const chat = store.startChat(c.id, "po-1", selectedCampaign);
+              const chat = store.startChat(
+                c.id,
+                store.me.posterId,
+                selectedCampaign,
+              );
               store.send(chat, {
                 id: crypto.randomUUID(),
                 body: `We would love to invite you to our campaign: ${mergeCampaigns(store.campaigns).find((x) => x.id === selectedCampaign)?.title}. Let’s discuss your creative ideas!`,
